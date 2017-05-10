@@ -306,8 +306,8 @@ class BTS(models.Model):
 
     class Meta:
         default_permissions = ()
-        permissions = ( 
-            ('view_bts', 'View BTS(Tower)'),  
+        permissions = (
+            ('view_bts', 'View BTS(Tower)'),
             ('add_bts', 'Add BTS(Tower)'),
             ('change_bts', 'Change BTS(Tower)'),
             ('deregister_bts', 'Deregister BTS(Tower)')
@@ -824,8 +824,8 @@ class UsageEvent(models.Model):
 
     class Meta:
         default_permissions = ()
-        permissions = ( 
-            ('view_usage', 'View usage activities'),  
+        permissions = (
+            ('view_usage', 'View usage activities'),
             ('download_usage', 'Download usage activities')
         )
 
@@ -1018,7 +1018,7 @@ class Network(models.Model):
 
     class Meta:
         default_permissions = ()
-        permissions = ( 
+        permissions = (
             ('view_network', 'View network'),
             ('change_network', 'Change network'),
         )
@@ -1846,9 +1846,9 @@ class SMSBroadcast(models.Model):
 
     class Meta:
         managed = False  # No database table creation or deletion operations \
-                         # will be performed for this model. 
+                         # will be performed for this model.
         default_permissions = ()
-        permissions = ( 
+        permissions = (
             ('add_sms', 'Add SMS broadcast'),
             ('send_sms', 'Send SMS broadcast from subscriber'),
         )
@@ -1859,7 +1859,7 @@ class Credit(models.Model):
     class Meta:
         managed = False
         default_permissions = ()
-        permissions = ( 
+        permissions = (
             ('add_credit', 'Add credit adjustment to subscriber'),
         )
 
@@ -1869,7 +1869,7 @@ class Notification(models.Model):
     class Meta:
         managed = False
         default_permissions = ()
-        permissions = ( 
+        permissions = (
             ('view_notification', 'View Notification'),
         )
 
@@ -1879,8 +1879,8 @@ class Report(models.Model):
     class Meta:
         managed = False
         default_permissions = ()
-        permissions = ( 
-            ('view_report', 'View reports'),  
+        permissions = (
+            ('view_report', 'View reports'),
             ('download_report', 'Download reports')
         )
 
@@ -1890,7 +1890,7 @@ class Graph(models.Model):
     class Meta:
         managed = False
         default_permissions = ()
-        permissions = ( 
-            ('view_graph', 'View graph'),  
+        permissions = (
+            ('view_graph', 'View graph'),
             ('download_graph', 'Download graph')
         )
