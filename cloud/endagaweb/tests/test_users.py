@@ -16,6 +16,8 @@ from __future__ import unicode_literals
 from datetime import datetime
 from random import randrange
 import uuid
+from django import test
+import json
 
 import pytz
 
@@ -26,57 +28,90 @@ from endagaweb import models
 
 
 class TestBase(TestCase):
-    @classmethod
-    def setUpTestData(cls):
-        user = models.User(username="km", email="k@m.com")
-        user.save()
-        user_profile = models.UserProfile.objects.get(user=user)
-        cls.network = user_profile.network
 
     @classmethod
-    def add_sub(cls, imsi,
-                ev_kind=None, ev_reason=None, ev_date=None,
-                balance=0):
-        sub = models.Subscriber.objects.create(
-            imsi=imsi, network=cls.network, balance=balance)
-        if ev_kind:
-            if ev_date is None:
-                ev_date = datetime.now(pytz.utc)
-            ev = models.UsageEvent(
-                subscriber=sub, network=cls.network, date=ev_date,
-                kind=ev_kind, reason=ev_reason)
-            ev.save()
-        return sub
+    def setUpClass(cls):
+        cls.username = 'y'
+        cls.password = 'pw'
+        cls.user = models.User(username=cls.username, email='y@l.com')
+        cls.user.set_password(cls.password)
+        cls.user.save()
+        cls.user_profile = models.UserProfile.objects.get(user=cls.user)
+        
+        cls.uuid = "59216199-d664-4b7a-a2db-6f26e9a5d208"
+        
+        # Create a test client.
+        cls.client = test.Client()
 
-    @staticmethod
-    def gen_crdt(delta):
-        # CRDT updates with the same UUID are merged - the max values of
-        # the P and N counters are taken - so we need to ensure the UUID
-        # of each update is distinct.
-        c = crdt.PNCounter(str(uuid.uuid4()))
-        if delta > 0:
-            c.increment(delta)
-        elif delta < 0:
-            c.decrement(-delta)
-        return c
+    @classmethod
+    def tearDownClass(cls):
+        cls.user.delete()
+        cls.user_profile.delete()
 
-    @staticmethod
-    def gen_imsi():
-        return 'IMSI0%014d' % (randrange(1, 1e10), )
+    def tearDown(self):
+        self.logout()
 
-    @staticmethod
-    def get_sub(imsi):
-        return models.Subscriber.objects.get(imsi=imsi)
+    def login(self):
+        """Log the client in."""
+        data = {
+            'email': self.username,
+            'password': self.password,
+        }
+        self.client.post('/auth/', data)
+
+    def logout(self):
+        """Log the client out."""
+        self.client.get('/logout')
 
 
 class UserTests(TestBase):
     """
     We can manage subscriber balances.
     """
-    def test_sub_get_balance(self):
-        """ Test the balance property. """
-        bal = randrange(1, 1000)
-        sub = self.add_sub(self.gen_imsi(),
-                           balance=bal)
-        self.assertEqual(sub.balance, bal)
+    def test_assert(self):
+        """ sample test """
+        self.assertEqual(1, 1)
+
+    def test_assert(self):
+        """ sample test """
+        self.assertEqual(1, 1)
+
+
+class UserUITest(TestBase):
+    """Testing that we can add User in the UI."""
+
+    def test_add_user(self):
+        self.logout()
+        response = self.client.get('/dashboard/user/management')
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
+
+    def test_add_user_auth(self):
+        self.login()
+        response = self.client.get('/dashboard/user/management')
+        self.assertEqual(200, response.status_code)
+
+    def test_delete_user(self):
+        self.logout()
+        response = self.client.get('/dashboard/user/management/delete')
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
+
+    def test_delete_user_auth(self):
+        self.login()
+        response = self.client.get('/dashboard/user/management/delete')
+        self.assertEqual(200, response.status_code)
+
+    def test_block_user(self):
+        self.logout()
+        response = self.client.get('/dashboard/user/management/blocking')
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
+
+    def test_block_user_auth(self):
+        self.login()
+        response = self.client.get('/dashboard/user/management/blocking')
+        self.assertEqual(200, response.status_code)
+
+
 
