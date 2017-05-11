@@ -1224,7 +1224,7 @@ class UserBlockUnblock(ProtectedView):
             return HttpResponse(message)
 
         message = 'Cannot %s %s' % (current_status, user.username)
-        messages.INFO(request, message)
+        messages.info(request, message)
         return HttpResponse(message)
 
 

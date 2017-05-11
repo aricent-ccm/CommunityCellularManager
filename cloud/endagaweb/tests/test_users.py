@@ -115,14 +115,7 @@ class UserUITest(TestBase):
 
     def test_post_add_user(self):
         self.logout()
-        data = {
-            'email': "a@b.com",
-            'password':"pw",
-            'username':"a@b.com",
-            'role': "Network Admin",
-            'networks': '1,2',
-            'permissions':"44,45,46"
-        }
+        data = {}
         response = self.client.post('/dashboard/user/management', data)
         # Anonymous User can not see this page so returning  permission denied.
         self.assertEqual(302, response.status_code)
@@ -133,11 +126,14 @@ class UserUITest(TestBase):
             'email': "a@b.com",
             'password':"pw",
             'username':"a@b.com",
-            'role': "Loader",
+            'role': "Network Admin",
             'networks': '1,2',
             'permissions':"44,45,46"
         }
         response = self.client.post('/dashboard/user/management', data)
+        #print "---------------"
+        #print response
+        #print "---------------"
         self.assertEqual(200, response.status_code)
 
     def test_check_email_exists(self):
@@ -150,11 +146,37 @@ class UserUITest(TestBase):
         self.assertEqual(expected_response, json.loads(response.content))
         self.assertEqual(200, response.status_code)
 
-    """def test_get_permissions(self):
+    def test_fail_check_email_exists(self):
         self.login()
-        data = {
-            'category': "Subscriber",
+        email = "y@l.com"
+        response = self.client.get('/dashboard/user/management/checkuser?email='+email)
+        expected_response = {
+            'email_available':False
         }
-        resqponse = self.client.post('/dashboard/user/management', data)
-        self.assertEqual(200, response.status_code)\
-    """
+        self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
+
+    def test_get_user_permissions(self):
+        """ Check user role permission"""
+        self.login()
+        email = "y@l.com"
+        response = self.client.get('/dashboard/user/management/permissions?role=Business Analyst')
+        expected_response = {
+            'email_available':False
+        }
+        #self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
+
+    def test_delete_user(self):
+        """ Test for delete system user """
+        self.login()
+        user_id = self.user.id
+        response = self.client.post('/dashboard/user/management/delete?user='+str(user_id))
+        self.assertEqual(200, response.status_code)
+
+    def test_block_user(self):
+        # Test for block unblock user
+        self.login()
+        user_id = self.user.id
+        response = self.client.post('/dashboard/user/management/blocking?user='+str(user_id))
+        self.assertEqual(200, response.status_code)
