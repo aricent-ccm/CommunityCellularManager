@@ -193,8 +193,8 @@ class SubscriberUITest(TestBase):
     def test_post_subscriber(self):
         self.logout()
         data = {
-            'category': "TestSim",
-            'imsi_val[]': "IMSI19999000000000"
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
         }
         response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
         # Anonymous User can not see this page so returning  permission denied.
@@ -203,8 +203,8 @@ class SubscriberUITest(TestBase):
     def test_post_subscriber_auth(self):
         self.login()
         data = {
-            'category': "TestSim",
-            'imsi_val[]': "IMSI19999000000000"
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
         }
         response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
         self.assertEqual(200, response.status_code)
@@ -212,9 +212,27 @@ class SubscriberUITest(TestBase):
     def test_successful_post_subscriber_auth(self):
         """When subscriber update succeeds, we send a 'message' """
         self.login()
+        imsi = self.gen_imsi()
+        bal = randrange(1, 1000)
+        self.add_sub(imsi, balance=bal)
         data = {
-            'category': "TestSim",
-            'imsi_val[]': "IMSI19999000000000"
+            'category': "Subscriber",
+            'imsi_val[]': imsi
+        }
+        response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
+        # We'll get back JSON (the page reload will be triggered in js).
+        expected_response = {
+            'message':"IMSI category updated successfully"
+        }
+        self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
+
+    def test_fail_post_subscriber_auth(self):
+        """When subscriber update succeeds, we send a 'message' """
+        self.login()
+        data = {
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
         }
         response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
         # We'll get back JSON (the page reload will be triggered in js).
@@ -222,3 +240,4 @@ class SubscriberUITest(TestBase):
             'message':"IMSI category update cannot happen"
         }
         self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
