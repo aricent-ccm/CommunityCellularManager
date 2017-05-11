@@ -113,5 +113,48 @@ class UserUITest(TestBase):
         response = self.client.get('/dashboard/user/management/blocking')
         self.assertEqual(200, response.status_code)
 
+    def test_post_add_user(self):
+        self.logout()
+        data = {
+            'email': "a@b.com",
+            'password':"pw",
+            'username':"a@b.com",
+            'role': "Network Admin",
+            'networks': '1,2',
+            'permissions':"44,45,46"
+        }
+        response = self.client.post('/dashboard/user/management', data)
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
 
+    def test_post_add_user_auth(self):
+        self.login()
+        data = {
+            'email': "a@b.com",
+            'password':"pw",
+            'username':"a@b.com",
+            'role': "Loader",
+            'networks': '1,2',
+            'permissions':"44,45,46"
+        }
+        response = self.client.post('/dashboard/user/management', data)
+        self.assertEqual(200, response.status_code)
 
+    def test_check_email_exists(self):
+        self.login()
+        email = "test@domain.com"
+        response = self.client.get('/dashboard/user/management/checkuser?email='+email)
+        expected_response = {
+            'email_available':True
+        }
+        self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
+
+    """def test_get_permissions(self):
+        self.login()
+        data = {
+            'category': "Subscriber",
+        }
+        resqponse = self.client.post('/dashboard/user/management', data)
+        self.assertEqual(200, response.status_code)\
+    """
