@@ -1299,7 +1299,6 @@ class SubscriberCategoryUpdate(ProtectedView):
     """Updating Subscriber category"""
 
     def post(self, request, *args, **kwargs):
-        print("in subscriber update", request.POST)
         imsi = request.POST.getlist('imsi_val[]')
         category = request.POST.get('category')
         search_imsi = Subscriber.objects.filter(imsi__in=imsi)
