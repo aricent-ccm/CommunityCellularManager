@@ -30,14 +30,13 @@ of patent rights can be found in the PATENTS file in the same directory.
 
     <div class='row'>
         {% include "dashboard/user_management/nav.html" with active_tab='delete'%}
-        <div class="container">
+        <div class="container col-sm-10">
             {% for message in messages %}
-            <dasdiv class="message alert alert-{{message.tags}}">
+            <div class="message alert alert-{{message.tags}}">
                 <a href="#" class="close" data-dismiss="alert">&times;</a>
                 {{message}}
-            </dasdiv>
+            </div>
             {% endfor %}
-            <div class="row">
                 <form action="/dashboard/user/management/delete" method="GET" role="form">
                     {% crispy search %}
                     <div class="col-xs-12 col-md-8">
@@ -48,14 +47,13 @@ of patent rights can be found in the PATENTS file in the same directory.
                         <input type="hidden" id="user" value=""/>
                         {% if users_found > 0 and show_all_users %}
                         {% render_table user_table %}
-                        {% else %}
+                        {% elif users_found == 0 %}
                         <h4>No user matched your search.</h4>
                         {% endif %}
                         </body>
                     </div>
                 </form>
             </div>
-        </div>
     </div>
 </header>
 
@@ -72,7 +70,7 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             <div class='modal-body'>
                 <h4>
-                    Are you sure you want to delete?
+                    Are you sure you want to delete "<span id="username"></span>"?
                 </h4>
             </div>
             <div class='modal-footer'>
@@ -89,6 +87,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 <script>
     function remove(user) {
         $("#user").val(user);
+        $("#username").html($("#user_"+user).html())
     }
     $('#delete-user-submit').click(function(){
 
