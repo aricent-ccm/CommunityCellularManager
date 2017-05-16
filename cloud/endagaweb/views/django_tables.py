@@ -343,7 +343,7 @@ class NumberTable(tables.Table):
 
 def render_username(record, **kwargs):
     """Shows the username as a link.
-    kwargs: 
+    kwargs:
     sender: name for the sender to change on click behaviour"""
 
     if kwargs.get('sender') == 'blocking':
@@ -362,7 +362,6 @@ def render_username(record, **kwargs):
                          "data-toggle='modal'>%s</a>" \
                          % (record.id, html_utils.escape(record.username))
 
-    # 'dashboard/user/management/?username=%s/delete
     return safestring.mark_safe(element)
 
 

@@ -255,7 +255,6 @@ def check_user(request):
         return JsonResponse(context)
     return HttpResponseBadRequest()
 
-
 # This view handles the password reset.
 def reset(request):
     return password_reset(request,

@@ -28,6 +28,8 @@ from guardian.shortcuts import get_objects_for_user
 from endagaweb import models
 from endagaweb.views.dashboard import ProtectedView
 from endagaweb.views import django_tables
+from django.template.loader import get_template
+from django.http import HttpResponse
 
 
 
@@ -64,12 +66,7 @@ class TowerList(drf_views.APIView):
             'suggested_nickname': suggested_nickname,
         }
 
-        # user_permissions = Permission.objects.filter(user=request.user)
-        # permissions = [str(a.codename) for a in user_permissions]
-        #if 'view_bts' not in permissions:
-        #    html = get_template('dashboard/403.html').render(context, request)
-        #else:
-            # Render template.
+        # Render template.
         towers_template = template.loader.get_template('dashboard/towers.html')
         html = towers_template.render(context, request)
 
