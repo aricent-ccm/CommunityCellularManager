@@ -453,3 +453,73 @@ class NetworkSelectView(ProtectedView):
         user_profile.network = network
         user_profile.save()
         return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
+
+class NetworkDenomination(ProtectedView):
+    """View info on a single network."""
+
+    def get(self, request):
+        print "ok here shiv"
+        """Handles GET requests."""
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+
+        # Determine the current version and latest client releases.  We need to
+        # use the printable_version function and for that we need a BTS
+        # instance (which will just reside in memory and not be saved).
+        bts = models.BTS()
+        current_version = bts.printable_version(
+            network.get_lowest_tower_version())
+
+        latest_stable_version = None
+        tmp_objs = models.ClientRelease.objects.filter(channel='stable').order_by('-date')
+        if (tmp_objs):
+            latest_stable_version = tmp_objs[0].version
+
+        latest_beta_version = None
+        tmp_objs = models.ClientRelease.objects.filter(channel='beta').order_by('-date')
+        if (tmp_objs):
+            latest_beta_version = tmp_objs[0].version
+
+        # Count the associated numbers, towers and subscribers.
+        towers_on_network = models.BTS.objects.filter(network=network).count()
+        subscribers_on_network = models.Subscriber.objects.filter(
+            network=network).count()
+        numbers_on_network = models.Number.objects.filter(
+            network=network).count()
+        # Count the 30-, 7- and 1-day active subs.
+        thirty_days = datetime.datetime.utcnow() - datetime.timedelta(days=30)
+        seven_days = datetime.datetime.utcnow() - datetime.timedelta(days=7)
+        one_day = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+        thirty_day_actives = models.Subscriber.objects.filter(
+            last_active__gt=thirty_days, network=network).count()
+        seven_day_actives = models.Subscriber.objects.filter(
+            last_active__gt=seven_days, network=network).count()
+        one_day_actives = models.Subscriber.objects.filter(
+            last_active__gt=one_day, network=network).count()
+        # Count the camped subscribers.  Unfortunately the Django ORM cannot
+        # filter on properties.
+        all_subs = models.Subscriber.objects.filter(network=network)
+        camped_right_now = len([s for s in all_subs if s.is_camped])
+        # Set the context with various stats.
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
+            'currency': CURRENCIES[user_profile.network.subscriber_currency],
+            'user_profile': user_profile,
+            'network': network,
+            'number_country': NUMBER_COUNTRIES[network.number_country],
+            'current_version': current_version,
+            'latest_stable_version': latest_stable_version,
+            'latest_beta_version': latest_beta_version,
+            'towers_on_network': towers_on_network,
+            'subscribers_on_network': subscribers_on_network,
+            'numbers_on_network': numbers_on_network,
+            'thirty_day_actives': thirty_day_actives,
+            'seven_day_actives': seven_day_actives,
+            'one_day_actives': one_day_actives,
+            'camped_right_now': camped_right_now,
+        }
+        # Render template.
+        info_template = template.loader.get_template(
+            'dashboard/network_detail/denomination.html')
+        html = info_template.render(context, request)
+        return http.HttpResponse(html)

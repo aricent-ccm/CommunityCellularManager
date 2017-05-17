@@ -37,6 +37,7 @@ nosetests.xml
 .mr.developer.cfg
 .project
 .pydevproject
+.idea
 
 # ignore vim stuff
 *.swp

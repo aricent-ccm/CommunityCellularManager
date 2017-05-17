@@ -1502,6 +1502,27 @@ post_save.connect(Network.set_network_defaults, sender=Network)
 post_save.connect(Network.create_billing_tiers, sender=Network)
 
 
+class NetworkDenominaton(models.Model):
+    """Each BTS has their own denomination bracket for rechange and validity
+
+    Subscriber status depends on recharge under denomination bracket
+    """
+    start_amount = models.PositiveIntegerField(blank=True, default=0)
+    end_amount = models.PositiveIntegerField(blank=True, default=0)
+    validity_days = models.PositiveIntegerField(blank=True, default=0)
+    date = models.DateTimeField()
+
+    # The user group associated with the network
+    network = models.ForeignKey(Network, on_delete=models.CASCADE)
+
+    def __unicode__(self):
+        return "Amount %s - %d  for %s (days)" % (
+            self.start_amount, self.end_amount, self.validity_days)
+
+    class Meta:
+        ordering = ('start_amount',)
+
+
 class ConfigurationKey(models.Model):
     """A key->value mapping for storing settings.
 
