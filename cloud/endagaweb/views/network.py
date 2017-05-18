@@ -434,6 +434,71 @@ class NetworkEdit(ProtectedView):
                          extra_tags="alert alert-success")
         return redirect(urlresolvers.reverse('network-edit'))
 
+
+class NetworkBalanceLimit(ProtectedView):
+    """Edit basic network info (to add credit to Network)."""
+
+    def get(self, request):
+        """Handles GET requests."""
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        # Set the context with various stats.
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
+            'user_profile': user_profile,
+            'network': network,
+            'network_balance_limit_form': dashboard_forms.NetworkBalanceLimit({
+                'limit': '',
+                'transitions': '',
+
+            }),
+        }
+        # Render template.
+        edit_template = template.loader.get_template(
+            'dashboard/network_detail/network-balancelimit.html')
+        html = edit_template.render(context, request)
+        return http.HttpResponse(html)
+
+    def post(self,request):
+        """Handles POST requests."""
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        method=request.method
+        if 'limit' not in request.POST:
+            return http.HttpResponseBadRequest()
+        if 'transaction' not in request.POST:
+            return http.HttpResponseBadRequest()
+
+        if request.POST.get('transaction') !="":
+            transaction_limit=request.POST.get('transaction')
+        else:
+            error_text = 'Require Max Unsuccessful Transaction  value'
+
+        if request.POST.get('limit') !="":
+            limit=request.POST.get('limit')
+
+        else:
+            error_text = 'Require Balance Limit  value'
+
+        with transaction.atomic():
+            try:
+                currency = network.subscriber_currency
+                amount = parse_credits(request.POST['limit'],
+                                       CURRENCIES[currency]).amount_raw
+                network.max_amount_limit=amount
+                network.max_failuer_Transaction=request.POST.get('transaction')
+                network.save()
+            except ValueError:
+                messages.error(request, error_text,extra_tags="alert alert-danger")
+                return redirect(urlresolvers.reverse('network_balance_limit'))
+        messages.success(request, "Network Balance Limit and Transaction updated",
+                         extra_tags="alert alert-success")
+        return redirect(urlresolvers.reverse('network_balance_limit'))
+
+
+
+
+
 class NetworkSelectView(ProtectedView):
     """This is a view that allows users to switch their current
     network. They must have view_network permission on the instance

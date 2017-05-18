@@ -47,5 +47,13 @@ of patent rights can be found in the PATENTS file in the same directory.
         {% endif %}">Edit</a>
     </li>
     {% endif %}
+    {% if perms.endagaweb.change_network %}
+    <li role="presentation" class="{% if active_tab == 'limit' %} active {% endif %}">
+      <a href="
+        {% if active_tab == 'limit' %} #
+        #{% else %}{% url 'network_balance_limit' %}
+        {% endif %}">Limit</a>
+    </li>
+    {% endif %}
   </ul>
 </div>
