@@ -23,6 +23,68 @@ of patent rights can be found in the PATENTS file in the same directory.
     display: none;
   }
 </style>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>jQuery UI Dialog - Default functionality</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+  <!--<link rel="stylesheet" href="/resources/demos/style.css">-->
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+   <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.0.3/js/bootstrap.min.js"></script>-->
+  <!--<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>-->
+<style>
+body {
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+table {
+	font-size: 1em;
+}
+
+.ui-draggable, .ui-droppable {
+	background-position: top;
+}
+
+</style>
+  <script>
+  $( function() {
+    $( "#dialog" ).dialog({
+
+     open: function(event, ui) {
+
+    $('.ui-dialog-titlebar-close').addClass('ui-button ui-widget ui-state-default ui-corner-all ui-button-icon-only');
+    $('.ui-dialog-titlebar-close').append('<span class="ui-button-icon-primary ui-icon ui-icon-closethick"></span><span class="ui-button-text">close</span>');
+
+    $('div ul').css({pointerEvents: "none"})
+    $('a.navbar-brand').css({pointerEvents: "none"})
+ },
+ width: 350,
+   //maxWidth: "768px",
+    close: function( event, ui ) {
+
+       $('div ul').css({pointerEvents: "all"})
+       $('a.navbar-brand').css({pointerEvents: "all"})
+         }
+
+});
+
+  } );
+  </script>
+</head>
+<body>
+{% if messages %}
+
+<div id="dialog"  class='content col-xs-12 col-sm-6'  style="height:400px;" title="Password Expiry Dialog">
+  {% for message in messages %}
+  <p>{% if message.text %} {% endif %} Hi {{ message }} Days</p>
+  {% endfor %}
+   <p><b><a href='/password/change'  class='btn btn-default' type='button' style ="margin: 10px 0;color:#428bca;">Change Password</a></b></p>
+</div>
+{% endif %}
+</div>
+</body>
+
 {% endblock %}
 
 
