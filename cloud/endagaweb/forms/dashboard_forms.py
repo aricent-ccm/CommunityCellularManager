@@ -54,6 +54,25 @@ class UpdateContactForm(forms.Form):
             'email', 'first_name', 'last_name', 'timezone',
         )
 
+class NetworkBalanceLimit(forms.Form):
+      limit =forms.CharField(required=False, label="Balance Limit")
+      transaction=forms.CharField(required=False, label="Max Unsuccessful Transaction")
+
+
+      def __init__(self, *args, **kwargs):
+          super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
+          self.helper = FormHelper()
+          self.helper.form_id = 'id-NetworkBalanceLimitForm'
+          self.helper.form_method = 'post'
+          self.helper.form_action = '/dashboard/network/balance-limit'
+          #self.helper.form_class = 'network-settings-form'
+          self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
+          self.helper.add_input(Submit('submit', 'Save',))
+          self.helper.layout = Layout(
+                'limit', 'transaction',
+          )
+
+
 
 class SubscriberInfoForm(forms.Form):
     """Crispy form to set Subscriber name."""

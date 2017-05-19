@@ -79,6 +79,9 @@ class UserProfile(models.Model):
     # >>> get_objects_for_user(user_profile.user, 'view_network', klass=Network)
     network = models.ForeignKey('Network', null=True,
                                 on_delete=models.SET_NULL)
+    # Added for Password Expiry
+    last_pwd_update = models.DateTimeField(auto_now=True)
+
 
     def __str__(self):
           return "%s's profile" % self.user
@@ -1014,6 +1017,9 @@ class Network(models.Model):
     # Network environments let you specify things like "prod", "test", "dev",
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
+    #Added for Network Balance Limit
+    max_amount_limit = models.BigIntegerField(default=0)
+    max_failuer_Transaction = models.IntegerField(default=10)
 
     class Meta:
         default_permissions = ()
