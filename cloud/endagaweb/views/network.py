@@ -9,6 +9,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 """
 
 import datetime
+import logging
 import time
 import json
 
@@ -28,6 +29,7 @@ from endagaweb.forms import dashboard_forms
 from endagaweb.views.dashboard import ProtectedView
 from endagaweb.views import django_tables
 
+logger = logging.getLogger(__name__)
 
 NUMBER_COUNTRIES = {
     'US': 'United States (+1)',
@@ -457,14 +459,14 @@ class NetworkSelectView(ProtectedView):
 
 
 class NetworkDenomination(ProtectedView):
-    """View info on a single network."""
+    """Assign denominations bracket for recharge/adjust-credit in network."""
 
     def get(self, request):
         """Handles GET requests."""
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
 
-        # Count the associated numbers, towers and subscribers.
+        # Count the associated denomination with selected network.
         denom = models.NetworkDenomination.objects.filter(network=network)
         denom_count = denom.count()
 
@@ -524,12 +526,32 @@ class NetworkDenomination(ProtectedView):
                     if dnm_id > 0:
                         try:
                             denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                            # Check for existing denomination range exist.
+                            denom_exists = models.NetworkDenomination.objects.filter(
+                                end_amount__gte=start_amount,
+                                start_amount__lte=end_amount,
+                                network=user_profile.network).exclude(id=dnm_id).count()
+                            if denom_exists:
+                                messages.warning(
+                                    request, 'Denomination range already exists. Please enter valid start - end value.',
+                                    extra_tags='alert alert-warning')
+                                return redirect(urlresolvers.reverse('network-denominations'))
                         except models.NetworkDenomination.DoesNotExist:
                             messages.error(
                                 request, 'Invalid denomination ID. Please try again.',
                                 extra_tags='alert alert-danger')
                     else:
-                        print "----------"
+                        # Check for existing denomination range exist.
+                        denom_exists = models.NetworkDenomination.objects.filter(
+                            end_amount__gte=start_amount,
+                            start_amount__lte=end_amount,
+                            network=user_profile.network).count()
+                        if denom_exists:
+                            messages.warning(
+                                request, 'Denomination range already exists. Please enter valid start - end value.',
+                                extra_tags='alert alert-warning')
+                            return redirect(urlresolvers.reverse('network-denominations'))
+                        # Create new denomination for selected network
                         denom = models.NetworkDenomination(network=user_profile.network)
                     denom.network = user_profile.network
                     denom.start_amount = start_amount
@@ -549,31 +571,26 @@ class NetworkDenomination(ProtectedView):
         return redirect(urlresolvers.reverse('network-denominations'))
 
     def delete(self, request):
+        """Handles delete requests."""
         response = {
             'status': 'ok',
             'messages': [],
         }
-        print request
-        print request.method
-        print request.GET
-        try:
-            dnm_id = request.GET.get('id') or False
-            if dnm_id:
-                try:
-                    denom = models.NetworkDenomination.objects.get(id=dnm_id)
-                    denom.delete()
-                    response['status'] = 'success'
-                    messages.success(request, 'Denomination deleted successfully.', extra_tags='alert alert-success')
-                except models.NetworkDenomination.DoesNotExist:
-                    response['status'] = 'failed'
-                    messages.error(
-                        request, 'Invalid denomination ID. Please try again.',
-                        extra_tags='alert alert-danger')
-            else:
+        dnm_id = request.GET.get('id') or False
+        if dnm_id:
+            try:
+                denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                denom.delete()
+                response['status'] = 'success'
+                messages.success(request, 'Denomination deleted successfully.', extra_tags='alert alert-success')
+            except models.NetworkDenomination.DoesNotExist:
                 response['status'] = 'failed'
                 messages.error(
-                    request, 'Invalid request data. Please enter valid data and try again.',
+                    request, 'Invalid denomination ID. Please try again.',
                     extra_tags='alert alert-danger')
-        except Exception as inst:
-            print(type(inst))
+        else:
+            response['status'] = 'failed'
+            messages.error(
+                request, 'Invalid request data. Please enter valid data and try again.',
+                extra_tags='alert alert-danger')
         return http.HttpResponse(json.dumps(response), content_type="application/json")
