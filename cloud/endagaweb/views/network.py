@@ -10,6 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import datetime
 import time
+import json
 
 from django import http
 from django import template
@@ -453,3 +454,126 @@ class NetworkSelectView(ProtectedView):
         user_profile.network = network
         user_profile.save()
         return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
+
+
+class NetworkDenomination(ProtectedView):
+    """View info on a single network."""
+
+    def get(self, request):
+        """Handles GET requests."""
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+
+        # Count the associated numbers, towers and subscribers.
+        denom = models.NetworkDenomination.objects.filter(network=network)
+        denom_count = denom.count()
+
+        dnm_id = request.GET.get('id', None)
+        if dnm_id:
+            response = {
+                'status': 'ok',
+                'messages': [],
+                'data': {}
+            }
+            denom = models.NetworkDenomination.objects.get(id=dnm_id)
+            denom_data = {
+                'id': denom.id,
+                'start_amount': denom.start_amount,
+                'end_amount': denom.end_amount,
+                'validity_days': denom.validity_days
+            }
+            response["data"] = denom_data
+            return http.HttpResponse(json.dumps(response), content_type="application/json")
+
+        # Configure the table of denominations. Do not show any pagination controls
+        # if the total number of donominations is small.
+        denominations_table = django_tables.DenominationTable(list(denom))
+        towers_per_page = 8
+        paginate = False
+        if denom > towers_per_page:
+            paginate = {'per_page': towers_per_page}
+        tables.RequestConfig(request, paginate=paginate).configure(denominations_table)
+
+        # Set the context with various stats.
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
+            'currency': CURRENCIES[user_profile.network.subscriber_currency],
+            'user_profile': user_profile,
+            'network': network,
+            'number_country': NUMBER_COUNTRIES[network.number_country],
+            'denomination': denom_count,
+            'denominations_table': denominations_table,
+        }
+        # Render template.
+        info_template = template.loader.get_template(
+            'dashboard/network_detail/denomination.html')
+        html = info_template.render(context, request)
+        return http.HttpResponse(html)
+
+    def post(self, request):
+        """Handles post requests."""
+        try:
+            start_amount = request.POST.get('start_amount')
+            end_amount = request.POST.get('end_amount')
+            validity_days = request.POST.get('validity_days')
+            dnm_id = int(request.POST.get('dnm_id')) or 0
+
+            with transaction.atomic():
+                user_profile = models.UserProfile.objects.get(user=request.user)
+                with transaction.atomic():
+                    if dnm_id > 0:
+                        try:
+                            denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                        except models.NetworkDenomination.DoesNotExist:
+                            messages.error(
+                                request, 'Invalid denomination ID. Please try again.',
+                                extra_tags='alert alert-danger')
+                    else:
+                        print "----------"
+                        denom = models.NetworkDenomination(network=user_profile.network)
+                    denom.network = user_profile.network
+                    denom.start_amount = start_amount
+                    denom.end_amount = end_amount
+                    denom.validity_days = validity_days
+                    denom.save()
+                    messages.success(
+                        request, 'Denomination is created successfully.',
+                        extra_tags='alert alert-success')
+        except Exception as inst:
+            print(type(inst))
+            print(inst.args)
+            print(inst)
+            messages.error(
+                request, 'Invalid request data. Please enter valid data and try again.',
+                extra_tags='alert alert-danger')
+        return redirect(urlresolvers.reverse('network-denominations'))
+
+    def delete(self, request):
+        response = {
+            'status': 'ok',
+            'messages': [],
+        }
+        print request
+        print request.method
+        print request.GET
+        try:
+            dnm_id = request.GET.get('id') or False
+            if dnm_id:
+                try:
+                    denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                    denom.delete()
+                    response['status'] = 'success'
+                    messages.success(request, 'Denomination deleted successfully.', extra_tags='alert alert-success')
+                except models.NetworkDenomination.DoesNotExist:
+                    response['status'] = 'failed'
+                    messages.error(
+                        request, 'Invalid denomination ID. Please try again.',
+                        extra_tags='alert alert-danger')
+            else:
+                response['status'] = 'failed'
+                messages.error(
+                    request, 'Invalid request data. Please enter valid data and try again.',
+                    extra_tags='alert alert-danger')
+        except Exception as inst:
+            print(type(inst))
+        return http.HttpResponse(json.dumps(response), content_type="application/json")
