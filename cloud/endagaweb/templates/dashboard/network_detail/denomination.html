@@ -10,74 +10,232 @@ of patent rights can be found in the PATENTS file in the same directory.
 {% load apptags %}
 {% load humanize %}
 {% load crispy_forms_tags %}
+{% load render_table from django_tables2 %}
 
 
 {% block title %}
-{% if network.name %}
-{% tmpl_const "SITENAME" %} | "{{ network.name }}"
-{% else %}
-{% tmpl_const "SITENAME" %} | Network
-{% endif %}
+    {% if network.name %}
+        {% tmpl_const "SITENAME" %} | "{{ network.name }}"
+    {% else %}
+        {% tmpl_const "SITENAME" %} | Network
+    {% endif %}
 {% endblock %}
 
+{% block pagestyle %}
+<style>
+
+    .btn{
+        margin-left: 5px;
+    }
+    .btn:last-child{
+        margin-left: 0;
+    }
+    table tbody tr.highlight td {
+        background-color: #ddd;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-{% include "dashboard/network_detail/header.html" with network=network %}
+    {% include "dashboard/network_detail/header.html" with network=network %}
 
-<div class = 'row'>
-  {% include "dashboard/network_detail/nav.html" with active_tab='network-denominations'%}
+    <div class='row'>
+        {% include "dashboard/network_detail/nav.html" with active_tab='network-denominations' %}
+        <div class='content col-xs-12 col-sm-10 col-md-6'>
+            {% for message in messages %}
+            <div class="message alert alert-{{message.tags}}">
+                <a href="#" class="close" data-dismiss="alert">&times;</a>
+                {{message}}
+            </div>
+            {% endfor %}
+            <div class="table-container">
+                {% if denomination %}
+                {% render_table denominations_table %}
+                {% else %}
+                    <p>There are currently no denominations associated with this network.</p>
+                {% endif %}
+            </div>
 
-  <div class='content col-xs-12 col-sm-10 col-md-4'>
-    <p><strong>Name</strong>: {{ network.name }}</p>
-    <p><strong>Subscriber Currency</strong>: {{ currency.name }}</p>
-    <p><strong>Number Country</strong>: {{ number_country }}</p>
-    <p>
-      <strong>Tower Software</strong>:
-      <ul>
-        <li>current version: {{ current_version }}</li>
-        <li>latest stable version: {{ latest_stable_version }}</li>
-        <li>latest beta version: {{ latest_beta_version }}</li>
-        <li>
-          automatic upgrades:
-          {% if network.autoupgrade_enabled %}
-            enabled to use the {{ network.autoupgrade_channel }} release
-          {% else %}
-            disabled
-          {% endif %}
-        </li>
-      </ul>
-    </p>
+        </div>
+        <div class='content col-xs-12 col-sm-10 col-md-4'>
+            <div class="panel panel-default">
+                <div class="panel-heading">Create Denomination</div>
+                <div class="panel-body">
+                    <div class="row-fluid">
+                        <form action="/dashboard/network/denominations" id="network_form" name="network_form" method="POST"
+                              data-toggle="validator" class="form-horizontal">{% csrf_token %}
+                            <div class="form-group row">
+                                <div class="col-md-12">
+                                    <label for="start_amount" id="ariaLable" class="col-3 col-form-label">
+                                        Start Amount <span class="aseriskField">*</span>
+                                    </label>
+                                    <div class="input-group col-xs-8">
+                                        <input class="form-control" type="number" id="start_amount" name="start_amount"
+                                               placeholder="Enter start amount" required/>
+                                    </div>
+                                </div>
+                            </div>
 
-    <p>
-      <strong>Network Size</strong>:
-      <ul>
-        <li>{{ towers_on_network }} tower{{ towers_on_network|pluralize }}</li>
-        <li>{{ subscribers_on_network }} subscriber{{ subscribers_on_network|pluralize }}</li>
-        <li>{{ numbers_on_network }} phone number{{ numbers_on_network|pluralize }}</li>
-      </ul>
-    </p>
+                            <div class="form-group row">
+                                <div class="col-md-12">
+                                    <label for="start_amount" id="ariaLable" class="col-3 col-form-label">
+                                        End Amount <span class="aseriskField">*</span>
+                                    </label>
+                                    <div class="input-group col-xs-8">
+                                        <input class="form-control" type="number" id="end_amount" name="end_amount"
+                                               placeholder="Enter end amount" required/>
+                                    </div>
+                                </div>
+                            </div>
 
-    <p>
-      <strong>Subscriber Stats</strong>:
-      <ul>
-        <li>active in the last month: {{ thirty_day_actives }}</li>
-        <li>active in the last week: {{ seven_day_actives }}</li>
-        <li>active in the last day: {{ one_day_actives }}</li>
-        <li>camped right now: {{ camped_right_now }}</li>
-      </ul>
-    </p>
+                            <div class="form-group row">
+                                <div class="col-md-12">
+                                    <label for="start_amount" id="ariaLable" class="col-3 col-form-label">
+                                        Validity <span class="aseriskField">*</span>
+                                    </label>
+                                    <div class="input-group col-xs-8">
+                                        <input class="form-control" type="number" id="validity_days" name="validity_days"
+                                               placeholder="Enter validity as number of days" required/>
+                                    </div>
+                                </div>
+                            </div>
 
-    {% if network.guru_settings %}
-    <p>
-      <strong>Advanced Settings:</strong>
-      <ul>
-        {% for setting in network.guru_settings %}
-          <li>{{ setting.key }}: {{ setting.value }}</li>
-        {% endfor %}
-      </ul>
-    </p>
-    {% endif %}
+                            <div class="form-group row">
+                                <div class="col-md-12">
+                                    <div class="input-group col-xs-8">
+                                        <input type="hidden" id="dnm_id" name="dnm_id" value="0" />
+                                        <input type="submit" id="submit" class="btn btn-primary pull-right" value="Submit"/>
+                                        <input type="button" id="cancel" class="btn btn-primary pull-right" value="Cancel" style="display: none;"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  </div> <!-- /.col-md-4 -->
-</div>
+    <div class='modal fade' id='delete-denom-modal'>
+        <div class='modal-dialog'>
+            <div class='modal-content'>
+                <div class='modal-header'>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h4 class='modal-title'>
+                        Confirmation
+                    </h4>
+                </div>
+                <div class='modal-body'>
+                    <h4>
+                        Are you sure you want to delete "<span id="denom_text"></span>"?
+                    </h4>
+                </div>
+                <div class='modal-footer'>
+                    <button type='button' class='btn btn-default' data-dismiss='modal'>Cancel</button>
+                    <button class='btn btn-primary' type='button' id='delete-confirm'>Confirm</button>
+                    <div id='user-messages-container'></div>
+                </div>
+            </div>
+        </div>
+    </div><!-- /.delete-user-modal -->
+
+{% endblock %}
+{% block js %}
+
+    <script type="text/javascript"
+            src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.11.1/jquery.validate.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#network_form').validate({
+                highlight: function (element) {
+                    $(element).closest('.form-group').addClass('has-error');
+                },
+                unhighlight: function (element) {
+                    $(element).closest('.form-group').removeClass('has-error');
+                },
+                errorElement: 'span',
+                errorClass: 'help-block',
+                errorPlacement: function (error, element) {
+                    if (element.parent('.input-group').length) {
+                        error.insertAfter(element.parent());
+                    } else {
+                        error.insertAfter(element);
+                    }
+                }
+            });
+            $('#cancel').click(function () {
+                $('#dnm_id').val(0);
+                $('#start_amount').val('');
+                $('#end_amount').val('');
+                $('#validity_days').val('');
+                $('.panel-heading').html("Create Denomination");
+                $('#submit').val("Submit");
+                $('#cancel').hide();
+            });
+            $('table tbody tr').on('click', function(event) {
+                $(this).addClass('highlight').siblings().removeClass('highlight');
+            });
+        });
+
+        function doAction(action, id) {
+            $("#dnm_id").val(id);
+            $.ajax({
+                url: '/dashboard/network/denominations?id=' + id,
+                type: 'GET',
+                success: function (response) {
+                    if(action == 'edit') {
+                        $('#dnm_id').val(response.data.id);
+                        $('#start_amount').val(response.data.start_amount);
+                        $('#end_amount').val(response.data.end_amount);
+                        $('#validity_days').val(response.data.validity_days);
+                        $('.panel-heading').html("Edit Denomination");
+                        $('#submit').val("Update");
+                        $('#cancel').show();
+                    } else {
+                        var denom_text = response.data.start_amount+"-"+response.data.end_amount+" ("+response.data.validity_days+" days)";
+                        $("#denom_text").html(denom_text);
+                    }
+                }
+            });
+        }
+        $('#delete-confirm').click(function () {
+            // Show a 'working' message.
+            var message = 'Working..';
+            var html = "<div class='alert alert-success'>" + message + "</div>";
+            $('#user-messages-container').html(html).show();
+            // Post to the endagaweb API.
+            $.ajax({
+                url: '/dashboard/network/denominations?id=' + $("#dnm_id").val(),
+                type: 'DELETE',
+                beforeSend: function (xhr) {
+                    xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
+                },
+                success: function (response) {
+                    // Show a success message after a small delay.
+                    // Then, after some more time has passed, redirect back to /subscribers.
+                    setTimeout(function () {
+                        var message = 'Done!, redirecting..';
+                        var html = "<div class='alert alert-success'>" + message + "</div>";
+                        $('#user-messages-container').html(html).show();
+                    }, 1000);
+                    setTimeout(function () {
+                        $('#delete-user-modal').modal('hide');
+                        window.location.href = '/dashboard/network/denominations';
+                    }, 2000);
+                },
+                error: function (response) {
+                    // Show an error message after a small delay.
+                    setTimeout(function () {
+                        var message = 'Error: ' + response.status;
+                        var html = "<div class='alert alert-danger'>" + message + "</div>";
+                        $('#user-messages-container').html(html).show();
+                    }, 800);
+                },
+            });
+
+        });
+    </script>
+
 {% endblock %}

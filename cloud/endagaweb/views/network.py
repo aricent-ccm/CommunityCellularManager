@@ -10,6 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import datetime
 import time
+import json
 
 from django import http
 from django import template
@@ -454,52 +455,45 @@ class NetworkSelectView(ProtectedView):
         user_profile.save()
         return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
 
+
 class NetworkDenomination(ProtectedView):
     """View info on a single network."""
 
     def get(self, request):
-        print "ok here shiv"
         """Handles GET requests."""
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
 
-        # Determine the current version and latest client releases.  We need to
-        # use the printable_version function and for that we need a BTS
-        # instance (which will just reside in memory and not be saved).
-        bts = models.BTS()
-        current_version = bts.printable_version(
-            network.get_lowest_tower_version())
-
-        latest_stable_version = None
-        tmp_objs = models.ClientRelease.objects.filter(channel='stable').order_by('-date')
-        if (tmp_objs):
-            latest_stable_version = tmp_objs[0].version
-
-        latest_beta_version = None
-        tmp_objs = models.ClientRelease.objects.filter(channel='beta').order_by('-date')
-        if (tmp_objs):
-            latest_beta_version = tmp_objs[0].version
-
         # Count the associated numbers, towers and subscribers.
-        towers_on_network = models.BTS.objects.filter(network=network).count()
-        subscribers_on_network = models.Subscriber.objects.filter(
-            network=network).count()
-        numbers_on_network = models.Number.objects.filter(
-            network=network).count()
-        # Count the 30-, 7- and 1-day active subs.
-        thirty_days = datetime.datetime.utcnow() - datetime.timedelta(days=30)
-        seven_days = datetime.datetime.utcnow() - datetime.timedelta(days=7)
-        one_day = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-        thirty_day_actives = models.Subscriber.objects.filter(
-            last_active__gt=thirty_days, network=network).count()
-        seven_day_actives = models.Subscriber.objects.filter(
-            last_active__gt=seven_days, network=network).count()
-        one_day_actives = models.Subscriber.objects.filter(
-            last_active__gt=one_day, network=network).count()
-        # Count the camped subscribers.  Unfortunately the Django ORM cannot
-        # filter on properties.
-        all_subs = models.Subscriber.objects.filter(network=network)
-        camped_right_now = len([s for s in all_subs if s.is_camped])
+        denom = models.NetworkDenomination.objects.filter(network=network)
+        denom_count = denom.count()
+
+        dnm_id = request.GET.get('id', None)
+        if dnm_id:
+            response = {
+                'status': 'ok',
+                'messages': [],
+                'data': {}
+            }
+            denom = models.NetworkDenomination.objects.get(id=dnm_id)
+            denom_data = {
+                'id': denom.id,
+                'start_amount': denom.start_amount,
+                'end_amount': denom.end_amount,
+                'validity_days': denom.validity_days
+            }
+            response["data"] = denom_data
+            return http.HttpResponse(json.dumps(response), content_type="application/json")
+
+        # Configure the table of denominations. Do not show any pagination controls
+        # if the total number of donominations is small.
+        denominations_table = django_tables.DenominationTable(list(denom))
+        towers_per_page = 8
+        paginate = False
+        if denom > towers_per_page:
+            paginate = {'per_page': towers_per_page}
+        tables.RequestConfig(request, paginate=paginate).configure(denominations_table)
+
         # Set the context with various stats.
         context = {
             'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
@@ -507,19 +501,79 @@ class NetworkDenomination(ProtectedView):
             'user_profile': user_profile,
             'network': network,
             'number_country': NUMBER_COUNTRIES[network.number_country],
-            'current_version': current_version,
-            'latest_stable_version': latest_stable_version,
-            'latest_beta_version': latest_beta_version,
-            'towers_on_network': towers_on_network,
-            'subscribers_on_network': subscribers_on_network,
-            'numbers_on_network': numbers_on_network,
-            'thirty_day_actives': thirty_day_actives,
-            'seven_day_actives': seven_day_actives,
-            'one_day_actives': one_day_actives,
-            'camped_right_now': camped_right_now,
+            'denomination': denom_count,
+            'denominations_table': denominations_table,
         }
         # Render template.
         info_template = template.loader.get_template(
             'dashboard/network_detail/denomination.html')
         html = info_template.render(context, request)
         return http.HttpResponse(html)
+
+    def post(self, request):
+        """Handles post requests."""
+        try:
+            start_amount = request.POST.get('start_amount')
+            end_amount = request.POST.get('end_amount')
+            validity_days = request.POST.get('validity_days')
+            dnm_id = int(request.POST.get('dnm_id')) or 0
+
+            with transaction.atomic():
+                user_profile = models.UserProfile.objects.get(user=request.user)
+                with transaction.atomic():
+                    if dnm_id > 0:
+                        try:
+                            denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                        except models.NetworkDenomination.DoesNotExist:
+                            messages.error(
+                                request, 'Invalid denomination ID. Please try again.',
+                                extra_tags='alert alert-danger')
+                    else:
+                        print "----------"
+                        denom = models.NetworkDenomination(network=user_profile.network)
+                    denom.network = user_profile.network
+                    denom.start_amount = start_amount
+                    denom.end_amount = end_amount
+                    denom.validity_days = validity_days
+                    denom.save()
+                    messages.success(
+                        request, 'Denomination is created successfully.',
+                        extra_tags='alert alert-success')
+        except Exception as inst:
+            print(type(inst))
+            print(inst.args)
+            print(inst)
+            messages.error(
+                request, 'Invalid request data. Please enter valid data and try again.',
+                extra_tags='alert alert-danger')
+        return redirect(urlresolvers.reverse('network-denominations'))
+
+    def delete(self, request):
+        response = {
+            'status': 'ok',
+            'messages': [],
+        }
+        print request
+        print request.method
+        print request.GET
+        try:
+            dnm_id = request.GET.get('id') or False
+            if dnm_id:
+                try:
+                    denom = models.NetworkDenomination.objects.get(id=dnm_id)
+                    denom.delete()
+                    response['status'] = 'success'
+                    messages.success(request, 'Denomination deleted successfully.', extra_tags='alert alert-success')
+                except models.NetworkDenomination.DoesNotExist:
+                    response['status'] = 'failed'
+                    messages.error(
+                        request, 'Invalid denomination ID. Please try again.',
+                        extra_tags='alert alert-danger')
+            else:
+                response['status'] = 'failed'
+                messages.error(
+                    request, 'Invalid request data. Please enter valid data and try again.',
+                    extra_tags='alert alert-danger')
+        except Exception as inst:
+            print(type(inst))
+        return http.HttpResponse(json.dumps(response), content_type="application/json")
