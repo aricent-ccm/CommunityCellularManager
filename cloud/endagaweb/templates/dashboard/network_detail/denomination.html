@@ -173,6 +173,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                 $('.panel-heading').html("Create Denomination");
                 $('#submit').val("Submit");
                 $('#cancel').hide();
+                $('table tbody tr').removeClass('highlight');
             });
             $('table tbody tr').on('click', function(event) {
                 $(this).addClass('highlight').siblings().removeClass('highlight');
