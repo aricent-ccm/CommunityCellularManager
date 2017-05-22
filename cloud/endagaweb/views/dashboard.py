@@ -286,6 +286,11 @@ class SubscriberInfo(ProtectedView):
                 'date')[0].date
         except IndexError:
             context['created'] = None
+        try:
+            number_details = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
+            context['valid_through'] = number_details.valid_through
+        except Number.DoesNotExist:
+            context['valid_through'] = None
         # Set usage info (SMS sent, total call duration, data usage).
         sms_kinds = ['free_sms', 'outside_sms', 'incoming_sms', 'local_sms',
                      'local_recv_sms', 'error_sms']
@@ -568,7 +573,6 @@ class SubscriberAdjustCredit(ProtectedView):
         except ValueError:
             messages.error(request, error_text)
             return adjust_credit_redirect
-        
         try:
             # Check for existing denomination range exist.
             denom_exists = NetworkDenomination.objects.get(
@@ -580,13 +584,14 @@ class SubscriberAdjustCredit(ProtectedView):
                 now = datetime.datetime.now(pytz.UTC)
                 expiry_date = now + datetime.timedelta(days=denom_exists.validity_days)
                 num = Number.objects.get(subscriber__imsi=imsi, subscriber__network=network)
-                if expiry_date >= num.valid_through:
-                    num.valid_through = expiry_date
+                num.valid_through = expiry_date
+                if num.valid_through is None:
+                    num.save()
+                elif expiry_date >= num.valid_through:
                     num.save()
         except NetworkDenomination.DoesNotExist:
             error_text = 'Error: Credit value must be in denomination range.'
             raise ValueError(error_text)
-
         # Validation suceeded, create a PCU and start the update credit task.
         msgid = str(uuid.uuid4())
         credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
