@@ -17,12 +17,10 @@ from celery.schedules import crontab
 
 from django.conf import settings
 
-
 assert 'DJANGO_SETTINGS_MODULE' in os.environ
 app = Celery('endagaweb')
 app.config_from_object('django.conf:settings')
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
-
 
 # Setup celerybeat.
 app.conf.update(CELERYBEAT_SCHEDULE={
@@ -30,17 +28,30 @@ app.conf.update(CELERYBEAT_SCHEDULE={
         'task': 'endagaweb.tasks.vacuum_inactive_subscribers',
         # Run this at 15:00 UTC (10:00 PDT, 02:00 Papua time).
         'schedule': crontab(minute=0, hour=17),
-    },'facebook-ods-checkin': {
+    }, 'facebook-ods-checkin': {
         'task': 'endagaweb.tasks.facebook_ods_checkin',
         # Run this every minute
         'schedule': crontab(minute='*'),
-    },'downtime-notify': {
+    }, 'downtime-notify': {
         'task': 'endagaweb.tasks.downtime_notify',
         # Run this every timeout period
-        'schedule': timedelta(seconds=settings.ENDAGA['BTS_INACTIVE_TIMEOUT_SECS']),
-    },'usageevents_to_sftp': {
+        'schedule': timedelta(
+            seconds=settings.ENDAGA['BTS_INACTIVE_TIMEOUT_SECS']),
+    }, 'usageevents_to_sftp': {
         'task': 'endagaweb.tasks.usageevents_to_sftp',
         # Run this at 15:00 UTC (10:00 PDT, 02:00 Papua time)
         'schedule': crontab(minute=0, hour=17),
+    }, 'validity-expiry-sms': {
+        'task': 'endagaweb.tasks.validity_expiry_sms',
+        # Run this at 16:00 UTC (11:00 PDT, 03:00 Papua time).
+        'schedule': crontab(minute=0, hour=18),
+    }, 'subscriber-validity-state': {
+        'task': 'endagaweb.tasks.subscriber_validity_state',
+        # Run this at 14:00 UTC (09:00 PDT, 01:00 Papua time).
+        'schedule': crontab(minute=0, hour=16),
+    }, 'unblock-blocked-subscriber': {
+        'task': 'endagaweb.tasks.unblock_blocked_subscribers',
+        # Run this at 14:00 UTC (09:00 PDT, 01:00 Papua time).
+        'schedule': crontab(minute=0, hour=16),
     }
 })

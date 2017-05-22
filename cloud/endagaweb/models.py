@@ -23,6 +23,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
+from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -45,7 +46,6 @@ from endagaweb.notifications import bts_up
 from endagaweb.util import currency as util_currency
 from endagaweb.util import dbutils as dbutils
 
-
 stripe.api_key = settings.STRIPE_API_KEY
 
 # These UsageEvent kinds do not count towards subscriber activity.
@@ -58,6 +58,9 @@ NON_ACTIVITIES = (
 OUTBOUND_ACTIVITIES = (
     'outside_call', 'outside_sms', 'local_call', 'local_sms',
 )
+# These UsageEvent events are not allowed block the Subscriber if repeated
+# for 3 times
+INVALID_EVENTS = ('error_call', 'error_sms')
 
 
 class UserProfile(models.Model):
@@ -81,7 +84,7 @@ class UserProfile(models.Model):
                                 on_delete=models.SET_NULL)
 
     def __str__(self):
-          return "%s's profile" % self.user
+        return "%s's profile" % self.user
 
     def display_name(self):
         if self.user.get_short_name():
@@ -277,7 +280,8 @@ class BTS(models.Model):
     uptime = models.IntegerField(null=True)
     # location of the tower, default is campanile
     # can't use point object for some reason
-    location = geomodels.GeometryField(geography=True, default='POINT(-122.260931 37.871783)')
+    location = geomodels.GeometryField(geography=True,
+                                       default='POINT(-122.260931 37.871783)')
     # power level of the tower
     power_level = models.IntegerField(default=100)
     # band used - eventually can add more
@@ -298,7 +302,8 @@ class BTS(models.Model):
     }
 
     band = models.CharField(
-        max_length=20, choices=[bands[i]['choices'] for i in bands.keys()], null=True)
+        max_length=20, choices=[bands[i]['choices'] for i in bands.keys()],
+        null=True)
     # channel number used
     # none is unknown or invalid
     channel = models.IntegerField(null=True, blank=True)
@@ -324,7 +329,8 @@ class BTS(models.Model):
         if (self.band is None and self.channel is None):  # valid bad state
             return
         elif not self.valid_band_and_channel(self.band, self.channel):
-            raise ValidationError({'channel': 'Invalid Channel or Band selected'})
+            raise ValidationError(
+                {'channel': 'Invalid Channel or Band selected'})
         return
 
     def save(self, *args, **kwargs):
@@ -353,7 +359,8 @@ class BTS(models.Model):
             self.channel = channel
             return True
         else:
-            logging.warn("Invalid band(%s) or channel(%s) selected" % (band, channel))
+            logging.warn(
+                "Invalid band(%s) or channel(%s) selected" % (band, channel))
             self.band = None
             self.channel = None
             return False
@@ -533,7 +540,8 @@ class Subscriber(models.Model):
         BTS, null=True, blank=True, on_delete=models.SET_NULL)
     imsi = models.CharField(max_length=50, unique=True)
     name = models.TextField()
-    crdt_balance = models.TextField(default=crdt.PNCounter("default").serialize())
+    crdt_balance = models.TextField(
+        default=crdt.PNCounter("default").serialize())
     state = models.CharField(max_length=10)
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
@@ -546,6 +554,10 @@ class Subscriber(models.Model):
     # can still delete subs with the usual "deactivate" button.
     prevent_automatic_deactivation = models.BooleanField(default=False)
     role = models.TextField(null=True, blank=True, default="Subscriber")
+    # Block subscriber if repeated unauthorized events.
+    is_blocked = models.BooleanField(default=False)
+    block_reason = models.TextField(default='No reason to block yet!')
+    block_time = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         default_permissions = ()
@@ -658,7 +670,7 @@ class Subscriber(models.Model):
             celery_app.send_task(
                 'endagaweb.tasks.async_post', (url, signed_data),
                 max_retries=max_retries)
-        # Deactivate all associated Numbers from this Sub.
+            # Deactivate all associated Numbers from this Sub.
         numbers = Number.objects.filter(subscriber=self)
         with transaction.atomic():
             now = django.utils.timezone.now()
@@ -904,9 +916,52 @@ class UsageEvent(models.Model):
         event.subscriber.last_active = event.date
         event.subscriber.save()
 
+    @staticmethod
+    def if_invalid_events(sender, instance=None, created=False, **kwargs):
+        # Let's Clear the entries after some specific time 10 days or 30 days
+        # older first! Add some code to delete 24hr older entries
+        if not created:
+            return
+        event = instance
+        if event.kind in INVALID_EVENTS:
+            subscriber = Subscriber.objects.get(imsi=event.subscriber_imsi)
+
+            if SubscriberInvalidEvents.objects.filter(
+                    subscriber=event.subscriber).exists():
+
+                # Subscriber is blocked after 3 counts i.e count will not be
+                # greater then 3 count
+
+                subscriber_event = SubscriberInvalidEvents.objects.get(
+                    subscriber=event.subscriber)
+                # if it is a 3rd event in 24hr block the subscriber
+                transactions_ids = subscriber_event.transactions + [event.transaction_id]
+                subscriber_event.count = subscriber_event.count + 1
+                subscriber_event.event_time = event.date
+                subscriber_event.transactions = transactions_ids
+                subscriber_event.save()
+
+                if subscriber_event.count == 3:
+                    subscriber.block = True
+                    subscriber.block_reason = 'Repeated %s within 24 hours ' % (
+                        '/'.join(INVALID_EVENTS),)
+                    subscriber.block_time = django.utils.timezone.now()
+                    subscriber.save()
+
+            else:
+                # print('_Creation_')
+                subscriber_event = SubscriberInvalidEvents.objects.create(
+                    subscriber=event.subscriber, count=1)
+                subscriber_event.event_time = event.date
+                # subscriber_event.reason = subscriber_event.reason.append(
+                #     instance.reason)
+                subscriber_event.transactions = [event.transaction_id]
+                subscriber_event.save()
+
 
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)
+post_save.connect(UsageEvent.if_invalid_events, sender=UsageEvent)
 
 
 class PendingCreditUpdate(models.Model):
@@ -976,7 +1031,8 @@ class Network(models.Model):
     # Whether or not to automatically delete inactive subscribers, and
     # associated parameters.
     sub_vacuum_enabled = models.BooleanField(default=False)
-    sub_vacuum_inactive_days = models.IntegerField(default=180)
+    sub_vacuum_inactive_days = models.IntegerField(default=100)
+    sub_vacuum_grace_days = models.IntegerField(default=30)
 
     # csv of endpoints to notify for downtime
     notify_emails = models.TextField(blank=True, default='')
@@ -1247,7 +1303,7 @@ class Network(models.Model):
             tier = BillingTier.objects.get(
                 network=self, directionality=directionality)
         elif (directionality == 'off_network_send' and
-              self.get_lowest_tower_version() is None):
+                      self.get_lowest_tower_version() is None):
             # If the network's lowest tower version is too low to support
             # Billing Tiers, we should bill all off_network_send events on
             # Tier A, as that's the only Tier that will be shown to the
@@ -1388,7 +1444,7 @@ class Network(models.Model):
         """
         network = Network.objects.get(ledger=instance)
         if created or not (network.billing_enabled and
-                           network.autoload_enable):
+                               network.autoload_enable):
             return
         network.recharge_if_necessary()
 
@@ -1503,7 +1559,8 @@ class ConfigurationKey(models.Model):
 
     Can be associated with many things.
     """
-    bts = models.ForeignKey(BTS, null=True, blank=True, on_delete=models.CASCADE)
+    bts = models.ForeignKey(BTS, null=True, blank=True,
+                            on_delete=models.CASCADE)
     network = models.ForeignKey(Network, null=True, blank=True,
                                 on_delete=models.CASCADE)
     category = models.TextField()  # "endaga", "openbts", etc..
@@ -1753,7 +1810,8 @@ class TimeseriesStat(models.Model):
     key = models.TextField()
     value = models.DecimalField(null=True, max_digits=12, decimal_places=3)
     date = models.DateTimeField()
-    bts = models.ForeignKey(BTS, null=True, blank=True, on_delete=models.CASCADE)
+    bts = models.ForeignKey(BTS, null=True, blank=True,
+                            on_delete=models.CASCADE)
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
 
 
@@ -1767,11 +1825,15 @@ class BTSLogfile(models.Model):
     requested = models.DateTimeField(auto_now_add=True)
     logfile = models.FileField(upload_to='logfiles/', null=True, blank=True)
     log_name = models.CharField(max_length=60,
-                                choices=[('syslog', 'Syslog'), ('endaga', 'Endaga')])
+                                choices=[('syslog', 'Syslog'),
+                                         ('endaga', 'Endaga')])
     task_id = models.CharField(max_length=50, null=True, blank=True)
     status = models.CharField(max_length=10, default='pending',
-                              choices=[('pending', 'Pending'), ('trying', 'Trying'),
-                                       ('error', 'Error'), ('accepted', 'Accepted'), ('done', 'Done')])
+                              choices=[('pending', 'Pending'),
+                                       ('trying', 'Trying'),
+                                       ('error', 'Error'),
+                                       ('accepted', 'Accepted'),
+                                       ('done', 'Done')])
     window_start = models.DateTimeField(blank=True, null=True,
                                         help_text='Gather log entries after this time')
     window_end = models.DateTimeField(blank=True, null=True,
@@ -1780,8 +1842,10 @@ class BTSLogfile(models.Model):
 
     def req_params(self):
         return {
-            'start': self.window_start.isoformat('T') if self.window_start else 'None',
-            'end': self.window_end.isoformat('T') if self.window_end else 'None',
+            'start': self.window_start.isoformat(
+                'T') if self.window_start else 'None',
+            'end': self.window_end.isoformat(
+                'T') if self.window_end else 'None',
             'log_name': self.log_name,
             'msgid': str(self.uuid)
         }
@@ -1816,7 +1880,7 @@ class SMSBroadcast(models.Model):
 
     class Meta:
         managed = False  # No database table creation or deletion operations \
-                         # will be performed for this model.
+        # will be performed for this model.
         default_permissions = ()
         permissions = (
             ('add_sms', 'Add SMS broadcast'),
@@ -1868,3 +1932,10 @@ class Graph(models.Model):
             ('view_graph', 'View graph'),
             ('download_graph', 'Download graph')
         )
+
+
+class SubscriberInvalidEvents(models.Model):
+    subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
+    count = models.PositiveIntegerField()
+    event_time = models.DateTimeField(auto_now_add=True)
+    transactions = ArrayField(models.UUIDField(), null=True)

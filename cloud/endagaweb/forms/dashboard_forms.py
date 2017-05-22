@@ -211,6 +211,8 @@ class SubVacuumForm(forms.Form):
         choices=enabled_choices, widget=forms.RadioSelect())
     inactive_days = forms.CharField(
         required=False, label='Outbound inactivity threshold (days)')
+    grace_days = forms.CharField(
+        required=False, label='Grace Period (days)')
 
     def __init__(self, *args, **kwargs):
         super(SubVacuumForm, self).__init__(*args, **kwargs)
@@ -222,11 +224,14 @@ class SubVacuumForm(forms.Form):
         # not this feature is active.
         if args[0]['sub_vacuum_enabled']:
             days_field = Field('inactive_days')
+            grace_field = Field('grace_days')
         else:
             days_field = Field('inactive_days', disabled=True)
+            grace_field = Field('grace_days', disabled=True)
         self.helper.layout = Layout(
             'sub_vacuum_enabled',
             days_field,
+            grace_field,
             Submit('submit', 'Save', css_class='pull-right'),
         )
 

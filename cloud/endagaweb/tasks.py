@@ -38,7 +38,7 @@ from endagaweb.models import BTS
 from endagaweb.models import Network
 from endagaweb.models import PendingCreditUpdate
 from endagaweb.models import ConfigurationKey
-from endagaweb.models import Subscriber
+from endagaweb.models import Subscriber, Network
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
@@ -439,3 +439,106 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
         raise
     finally:
       obj.save()
+
+
+@app.task(bind=True)
+def unblock_blocked_subscribers(self):
+    """Unblock subscribers who are blocked for past 24 hrs.
+
+    This runs this as a periodic task managed by celerybeat.
+    """
+    print 'INSIDE UNBLOCK SUBSCRIBERS in task.py'
+    unblock_time = datetime.datetime.now() - datetime.timedelta(days=1)
+    try:
+        subscriber = Subscriber.objects.filter(is_blocked=True,
+                                               blocked_time__gte=unblock_time)
+        subscriber.update(is_block=False, block_time=None)
+        print 'unblocked subscriber %s' % (subscriber.imsi,)
+    except Exception as err:
+        print 'Error while unblocking subscriber, %s ' % (err,)
+
+
+@app.task(bind=True)
+def subscriber_validity_state(self):
+    """ Updates the subscribers state to inactive/active/"""
+
+    today = django.utils.timezone.now().date()
+
+    for subscriber in Subscriber.objects.iterator():
+        if not subscriber.network.sub_vacuum_enabled:
+            continue
+        try:
+            number = subscriber.number_set.all()[0]
+        except IndexError:
+            continue
+
+        subscriber_validity = number.valid_through.date()
+        first_expire = subscriber_validity + datetime.timedelta(
+            days=subscriber.network.sub_vacuum_inactive_days)
+        recycle = first_expire + datetime.timedelta(
+            days=subscriber.network.sub_vacuum_grace_days)
+
+        if subscriber_validity < today:
+            if today <= first_expire:
+                # Set subscriber as inactive
+                subscriber.state = 'inactive'
+                subscriber.save()
+                print 'inside inactive'
+            elif today > recycle:
+                # Set subscriber free i.e deactivate
+                if subscriber.prevent_automatic_deactivation:
+                    continue
+                subscriber.deactivate()
+            else:
+                # Set subscriber as 1st expire
+                subscriber.state = 'first_expire'
+                subscriber.save()
+
+@app.task(bind=True)
+def validity_expiry_sms(self, days=7):
+    """Sends SMS to the number whose validity is:
+     about to get expire, 
+     if expired (i.e 1st expired), or
+     if the number is in grace period and is about to recycle.
+     
+     Args:
+         days: Days prior (state change) which the SMS is sent to Subscriber.
+     Runs as everyday task managed by celerybeat.
+     """
+    today = django.utils.timezone.now()
+
+    for subscriber in Subscriber.objects.iterator():
+        # Do nothing if subscriber vacuuming is disabled for the network.
+        if not subscriber.network.sub_vacuum_enabled:
+            continue
+        number = subscriber.number_set.all()[0]
+        subscriber_validity = number.valid_through
+        if subscriber_validity is None:
+            print '%s has no validity' % (subscriber.imsi,)
+            continue
+        inactive_period = subscriber.network.sub_vacuum_inactive_days
+        grace_period = subscriber.network.sub_vacuum_grace_days
+        prior_first_expire = subscriber.valid_through + datetime.timedelta(
+            days=inactive_period) - datetime.timedelta(days=days)
+        prior_recycle = prior_first_expire + datetime.timedelta(
+            days=grace_period)
+
+        # Prior to expiry state
+        if (subscriber_validity - datetime.timedelta(days=days) or (
+                    subscriber_validity - datetime.timedelta(days=1))) == today:
+            # TODO(sagar): Format the body with more info.
+            body = 'Your validity is about to get expired, Please recharge ' \
+                   'to enjoy the service! '
+        # Prior 1st_expired state
+        elif number.valid_through < today:
+            if prior_first_expire == today:
+                body = 'Your validity is expired,Please recharge immediately ' \
+                       'to activate your services! '
+            # Prior to recycle state
+            elif prior_recycle == today:
+                body = 'Warning: Your validity is expired, Please recharge ' \
+                       'immediately to avoid recycle of your connection! '
+        else:
+            return # Do nothing
+        # Send SMS
+        sms_notification(body=body, to=number)
