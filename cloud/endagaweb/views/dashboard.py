@@ -46,7 +46,7 @@ from ccm.common.currency import parse_credits, humanize_credits, \
 from endagaweb import tasks
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
-                              Network, PendingCreditUpdate, Number)
+                              Network, NetworkDenomination, PendingCreditUpdate, Number)
 from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
 
@@ -576,14 +576,13 @@ class SubscriberAdjustCredit(ProtectedView):
             return HttpResponseBadRequest()
         error_text = 'Error: credit value must be between -10M and 10M.'
 
-
-
         try:
             currency = network.subscriber_currency
-            amount = parse_credits(request.POST['amount'],
+            amount_row = request.POST['amount']
+            amount = parse_credits(amount_row,
                                    CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
-                error_text = 'Error: credit value must be between -10M and 10M.'
+                error_text = 'Error: Credit value must be between -10M and 10M.'
                 raise ValueError(error_text)
             if sub.balance + amount > network.max_amount_limit:
                 error_text = 'Dont have enough network credit.Crossed Network limit credit. '
@@ -591,12 +590,30 @@ class SubscriberAdjustCredit(ProtectedView):
         except ValueError:
             messages.error(request, error_text)
             return adjust_credit_redirect
+        
+        try:
+            # Check for existing denomination range exist.
+            denom_exists = NetworkDenomination.objects.get(
+                start_amount__lte=amount_row,
+                end_amount__gte=amount_row,
+                network=user_profile.network)
+            # Update user validity for recharge denomination amount
+            if denom_exists.validity_days > 0:
+                now = datetime.datetime.now(pytz.UTC)
+                expiry_date = now + datetime.timedelta(days=denom_exists.validity_days)
+                num = Number.objects.get(subscriber__imsi=imsi, subscriber__network=network)
+                if expiry_date >= num.valid_through:
+                    num.valid_through = expiry_date
+                    num.save()
+        except NetworkDenomination.DoesNotExist:
+            error_text = 'Error: Credit value must be in denomination range.'
+            raise ValueError(error_text)
+
         # Validation suceeded, create a PCU and start the update credit task.
         msgid = str(uuid.uuid4())
-        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid,
-                                            amount=amount)
+        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
         credit_update.save()
-        tasks.update_credit.delay(sub.imsi, msgid)
+        #tasks.update_credit.delay(sub.imsi, msgid)
         return adjust_credit_redirect
 
     def delete(self, request, imsi=None):
