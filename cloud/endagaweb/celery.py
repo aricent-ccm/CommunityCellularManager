@@ -51,7 +51,7 @@ app.conf.update(CELERYBEAT_SCHEDULE={
         'schedule': crontab(minute=0, hour=16),
     }, 'unblock-blocked-subscriber': {
         'task': 'endagaweb.tasks.unblock_blocked_subscribers',
-        # Run this at 14:00 UTC (09:00 PDT, 01:00 Papua time).
-        'schedule': crontab(minute=0, hour=16),
+        # Run this in every hour
+        'schedule': crontab(minute=59),
     }
 })

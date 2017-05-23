@@ -296,7 +296,7 @@ def facebook_ods_checkin(self):
                 # stats for this bts since it was last active, group and average by key
                 for timeseries_stat in TimeseriesStat.objects.filter(bts=bts).filter(
                     date__gte=bts.last_active).values('key').annotate(
-                        average_value=Avg('value')).order_by():
+                    average_value=Avg('value')).order_by():
                     datapoints.append({'entity': ent_name,
                                        'key': timeseries_stat['key'],
                                        'value': timeseries_stat['average_value']})
@@ -304,7 +304,8 @@ def facebook_ods_checkin(self):
                 # subscribers that have camped within the T3212 window on this BTS are considered active
                 t3212_mins = int(ConfigurationKey.objects.get(
                     network=bts.network, key="GSM.Timer.T3212").value)
-                t3212_window_start = bts.last_active - datetime.timedelta(minutes=t3212_mins)
+                t3212_window_start = bts.last_active - datetime.timedelta(
+                    minutes=t3212_mins)
                 camped_subscribers = Subscriber.objects.filter(bts=bts).filter(
                     last_camped__gte=t3212_window_start)
                 datapoints.append({'entity': ent_name,
@@ -447,15 +448,12 @@ def unblock_blocked_subscribers(self):
 
     This runs this as a periodic task managed by celerybeat.
     """
-    print 'INSIDE UNBLOCK SUBSCRIBERS in task.py'
-    unblock_time = datetime.datetime.now() - datetime.timedelta(days=1)
-    try:
-        subscriber = Subscriber.objects.filter(is_blocked=True,
-                                               blocked_time__gte=unblock_time)
-        subscriber.update(is_block=False, block_time=None)
-        print 'unblocked subscriber %s' % (subscriber.imsi,)
-    except Exception as err:
-        print 'Error while unblocking subscriber, %s ' % (err,)
+    unblock_time = django.utils.timezone.now() - datetime.timedelta(days=1)
+    subscribers = Subscriber.objects.filter(is_blocked=True,
+                                               block_time__lte=unblock_time)
+    if not subscribers:
+        return # Do nothing
+    subscribers.update(is_blocked=False, block_time=None)
 
 
 @app.task(bind=True)
@@ -463,12 +461,13 @@ def subscriber_validity_state(self):
     """ Updates the subscribers state to inactive/active/"""
 
     today = django.utils.timezone.now().date()
-
     for subscriber in Subscriber.objects.iterator():
         if not subscriber.network.sub_vacuum_enabled:
             continue
         try:
             number = subscriber.number_set.all()[0]
+            if number.valid_through is None:
+                continue
         except IndexError:
             continue
 
@@ -477,22 +476,33 @@ def subscriber_validity_state(self):
             days=subscriber.network.sub_vacuum_inactive_days)
         recycle = first_expire + datetime.timedelta(
             days=subscriber.network.sub_vacuum_grace_days)
+        current_state = str(subscriber.state)
 
-        if subscriber_validity < today:
+        if subscriber_validity < today and (current_state != 'inactive'):
             if today <= first_expire:
                 # Set subscriber as inactive
                 subscriber.state = 'inactive'
                 subscriber.save()
-                print 'inside inactive'
+                print "Updating subscriber(%s) state to 'Inactive'" % (
+                    subscriber.imsi,)
             elif today > recycle:
-                # Set subscriber free i.e deactivate
+                # Set subscriber as recycle
                 if subscriber.prevent_automatic_deactivation:
                     continue
-                subscriber.deactivate()
+                subscriber.state = 'recycle'
+                print "Updating subscriber(%s) state to 'Recycle'" % (
+                    subscriber.imsi,)
+                # Lets not deactivate Subscriber and let it handled by
+                # vacuum_inactive_subscribers task
+                # subscriber.deactivate()
             else:
-                # Set subscriber as 1st expire
-                subscriber.state = 'first_expire'
-                subscriber.save()
+                if current_state != 'first_expire':
+                    # Set subscriber as 1st expire
+                    subscriber.state = 'first_expire'
+                    subscriber.save()
+                    print "Updating subscriber(%s) state to 'First Expire'" % (
+                        subscriber.imsi,)
+
 
 @app.task(bind=True)
 def validity_expiry_sms(self, days=7):
@@ -505,40 +515,49 @@ def validity_expiry_sms(self, days=7):
          days: Days prior (state change) which the SMS is sent to Subscriber.
      Runs as everyday task managed by celerybeat.
      """
-    today = django.utils.timezone.now()
-
+    today = django.utils.timezone.datetime.now().date()
     for subscriber in Subscriber.objects.iterator():
         # Do nothing if subscriber vacuuming is disabled for the network.
         if not subscriber.network.sub_vacuum_enabled:
             continue
-        number = subscriber.number_set.all()[0]
-        subscriber_validity = number.valid_through
-        if subscriber_validity is None:
-            print '%s has no validity' % (subscriber.imsi,)
+        try:
+            number = subscriber.number_set.all()[0]
+            subscriber_validity = number.valid_through
+            # In case where number has no validity
+            if subscriber_validity is None:
+                # print '%s has no validity' % (subscriber.imsi,)
+                continue
+        except IndexError:
+            # print 'No number attached to subscriber %s' % (subscriber.imsi,)
             continue
+        subscriber_validity = subscriber_validity.date()
         inactive_period = subscriber.network.sub_vacuum_inactive_days
         grace_period = subscriber.network.sub_vacuum_grace_days
-        prior_first_expire = subscriber.valid_through + datetime.timedelta(
+        prior_first_expire = subscriber_validity + datetime.timedelta(
             days=inactive_period) - datetime.timedelta(days=days)
         prior_recycle = prior_first_expire + datetime.timedelta(
             days=grace_period)
 
-        # Prior to expiry state
-        if (subscriber_validity - datetime.timedelta(days=days) or (
-                    subscriber_validity - datetime.timedelta(days=1))) == today:
-            # TODO(sagar): Format the body with more info.
+        # Prior to expiry state (one on last day and before defined days)
+        if (subscriber_validity - datetime.timedelta(days=days)) == today or \
+                        today == (subscriber_validity - datetime.timedelta(
+                    days=1)):
             body = 'Your validity is about to get expired, Please recharge ' \
                    'to enjoy the service! '
+            sms_notification(body=body, to=number)
+
         # Prior 1st_expired state
-        elif number.valid_through < today:
+        elif subscriber_validity < today:
+            # print subscriber_validity
+            # print today
             if prior_first_expire == today:
-                body = 'Your validity is expired,Please recharge immediately ' \
-                       'to activate your services! '
+                body = 'Your validity is expired, Please recharge ' \
+                       'immediately to activate your services again! '
+                sms_notification(body=body, to=number)
             # Prior to recycle state
             elif prior_recycle == today:
                 body = 'Warning: Your validity is expired, Please recharge ' \
-                       'immediately to avoid recycle of your connection! '
+                       'immediately to avoid deactivation of your connection! '
+                sms_notification(body=body, to=number)
         else:
-            return # Do nothing
-        # Send SMS
-        sms_notification(body=body, to=number)
+            return  # Do nothing

@@ -542,7 +542,7 @@ class Subscriber(models.Model):
     name = models.TextField()
     crdt_balance = models.TextField(
         default=crdt.PNCounter("default").serialize())
-    state = models.CharField(max_length=10)
+    state = models.CharField(max_length=15)
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
     # Time of the last received UsageEvent that is in OUTBOUND_ACTIVITIES.  We
@@ -556,7 +556,8 @@ class Subscriber(models.Model):
     role = models.TextField(null=True, blank=True, default="Subscriber")
     # Block subscriber if repeated unauthorized events.
     is_blocked = models.BooleanField(default=False)
-    block_reason = models.TextField(default='No reason to block yet!')
+    block_reason = models.TextField(default='No reason to block yet!',
+                                    max_length=255)
     block_time = models.DateTimeField(null=True, blank=True)
 
     class Meta:
