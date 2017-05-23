@@ -23,7 +23,7 @@ from django.shortcuts import redirect
 import django_tables2 as tables
 from guardian.shortcuts import get_objects_for_user
 
-from ccm.common.currency import parse_credits, CURRENCIES, DEFAULT_CURRENCY
+from ccm.common.currency import parse_credits, humanize_credits, CURRENCIES, DEFAULT_CURRENCY
 from endagaweb import models
 from endagaweb.forms import dashboard_forms
 from endagaweb.views.dashboard import ProtectedView
@@ -530,6 +530,7 @@ class NetworkDenomination(ProtectedView):
         """Handles GET requests."""
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
+        currency = network.subscriber_currency
 
         # Count the associated denomination with selected network.
         denom = models.NetworkDenomination.objects.filter(network=network)
@@ -545,8 +546,8 @@ class NetworkDenomination(ProtectedView):
             denom = models.NetworkDenomination.objects.get(id=dnm_id)
             denom_data = {
                 'id': denom.id,
-                'start_amount': denom.start_amount,
-                'end_amount': denom.end_amount,
+                'start_amount': humanize_credits(denom.start_amount, CURRENCIES[currency]).amount_str(),
+                'end_amount': humanize_credits(denom.end_amount, CURRENCIES[currency]).amount_str(),
                 'validity_days': denom.validity_days
             }
             response["data"] = denom_data
@@ -578,10 +579,20 @@ class NetworkDenomination(ProtectedView):
         return http.HttpResponse(html)
 
     def post(self, request):
-        """Handles post requests."""
+        """Operators can use this API to add denomination to a network.
+
+        These denomination bracket will be used to recharge subscriber and set balance validity
+        """
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
         try:
-            start_amount = request.POST.get('start_amount')
-            end_amount = request.POST.get('end_amount')
+            currency = network.subscriber_currency
+            start_amount_raw = request.POST.get('start_amount')
+            start_amount = parse_credits(start_amount_raw,
+                                   CURRENCIES[currency]).amount_raw
+            end_amount_raw = request.POST.get('end_amount')
+            end_amount = parse_credits(end_amount_raw,
+                                         CURRENCIES[currency]).amount_raw
             validity_days = request.POST.get('validity_days')
             dnm_id = int(request.POST.get('dnm_id')) or 0
 
@@ -627,9 +638,6 @@ class NetworkDenomination(ProtectedView):
                         request, 'Denomination is created successfully.',
                         extra_tags='alert alert-success')
         except Exception as inst:
-            print(type(inst))
-            print(inst.args)
-            print(inst)
             messages.error(
                 request, 'Invalid request data. Please enter valid data and try again.',
                 extra_tags='alert alert-danger')
