@@ -516,28 +516,29 @@ class SubscriberAdjustCredit(ProtectedView):
         try:
             subscriber = Subscriber.objects.get(imsi=imsi,
                                                 network=network)
+            # Set the response context.
+            pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
+                'date')
+            initial_form_data = {
+                'imsi': subscriber.imsi,
+            }
+            context = {
+                'networks': get_objects_for_user(request.user,
+                                                 'view_network', klass=Network),
+                'currency': CURRENCIES[network.subscriber_currency],
+                'user_profile': user_profile,
+                'subscriber': subscriber,
+                'pending_updates': pending_updates,
+                'credit_update_form': dform.SubscriberCreditUpdateForm(
+                    initial=initial_form_data),
+            }
+            # Render template.
+            template = get_template(
+                'dashboard/subscriber_detail/adjust_credit.html')
+            html = template.render(context, request)
+            return HttpResponse(html)
         except Subscriber.DoesNotExist:
-            return HttpResponseBadRequest()
-        # Set the response context.
-        pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
-            'date')
-        initial_form_data = {
-            'imsi': subscriber.imsi,
-        }
-        context = {
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
-            'currency': CURRENCIES[network.subscriber_currency],
-            'user_profile': user_profile,
-            'subscriber': subscriber,
-            'pending_updates': pending_updates,
-            'credit_update_form': dform.SubscriberCreditUpdateForm(
-                initial=initial_form_data),
-        }
-        # Render template.
-        template = get_template(
-            'dashboard/subscriber_detail/adjust_credit.html')
-        html = template.render(context, request)
-        return HttpResponse(html)
+            return dashboard_view(request)
 
     def post(self, request, imsi=None):
         """Operators can use this API to add credit to a subscriber.
@@ -562,8 +563,7 @@ class SubscriberAdjustCredit(ProtectedView):
         error_text = 'Error: credit value must be between -10M and 10M.'
         try:
             currency = network.subscriber_currency
-            amount_row = request.POST['amount']
-            amount = parse_credits(amount_row,
+            amount = parse_credits(request.POST['amount'],
                                    CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
                 error_text = 'Error: Credit value must be between -10M and 10M.'
@@ -574,8 +574,8 @@ class SubscriberAdjustCredit(ProtectedView):
             try:
                 # Check for existing denomination range exist.
                 denom_exists = NetworkDenomination.objects.get(
-                    start_amount__lte=amount_row,
-                    end_amount__gte=amount_row,
+                    start_amount__lte=amount,
+                    end_amount__gte=amount,
                     network=network)
                 # Update user validity for recharge denomination amount
                 if denom_exists.validity_days > 0:

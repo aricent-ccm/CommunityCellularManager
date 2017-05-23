@@ -1465,8 +1465,8 @@ class NetworkDenomination(models.Model):
 
     Subscriber status depends on recharge under denomination bracket
     """
-    start_amount = models.PositiveIntegerField(blank=True, default=0)
-    end_amount = models.PositiveIntegerField(blank=True, default=0)
+    start_amount = models.BigIntegerField()
+    end_amount = models.BigIntegerField()
     validity_days = models.PositiveIntegerField(blank=True, default=0)
 
     # The denomination group associated with the network
