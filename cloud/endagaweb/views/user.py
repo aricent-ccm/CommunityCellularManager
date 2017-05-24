@@ -255,7 +255,6 @@ def check_user(request):
         return JsonResponse(context)
     return HttpResponseBadRequest()
 
-
 # This view handles the password reset.
 def reset(request):
     return password_reset(request,
@@ -288,7 +287,7 @@ def role_default_permissions(request):
                           "notification", "usageevent"]
 
         business_analyst = ['view_graph', 'view_report', 'view_bts',
-                            'view_subscriber', 'view_network', 'add_credit']
+                            'view_subscriber', 'view_network']
 
         loader = ['view_graph', 'view_report', 'view_bts', 'view_subscriber',
                   'view_network', 'change_subscriber', 'change_network',
