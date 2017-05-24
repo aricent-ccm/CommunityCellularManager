@@ -717,7 +717,7 @@ class Number(ChargingEntity):
     network = models.ForeignKey('Network', null=True, blank=True,
                                 on_delete=models.CASCADE)
     number = models.CharField(max_length=1024)  # the number (msisdn)
-    state = models.CharField(max_length=32)  # 'available', 'pending', 'inuse'
+    state = models.CharField(max_length=32)  # 'available', 'pending', 'inuse', 'expired'
     country_id = models.TextField(null=True)  # country the number belongs to
 
     def __unicode__(self):

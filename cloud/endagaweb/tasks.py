@@ -32,6 +32,7 @@ from django.template.loader import render_to_string
 from django.db.models import Avg, Count
 import django.utils.timezone
 import requests
+import uuid
 
 from endagaweb.celery import app
 from endagaweb.models import BTS
@@ -42,6 +43,7 @@ from endagaweb.models import Subscriber
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
+from endagaweb.models import Number
 from endagaweb.ic_providers.nexmo import NexmoProvider
 
 
@@ -439,3 +441,29 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
         raise
     finally:
       obj.save()
+
+@app.task(bind=True)
+def zero_out_subscribers_balance(self):
+    """Balance zero out of subscribers when validity date expires.
+
+    This runs this as a periodic task managed by celerybeat.
+    """
+    today = django.utils.timezone.now()
+    numbers = Number.objects.filter(valid_through__lte=today)
+    for number in numbers:
+        # Update subscriber status to expired and balance zero out
+        number.state = 'expired'
+        number.save()
+        try:
+            subscriber = Subscriber.objects.get(id = number.subscriber_id)
+            subscriber.state = 'expired'
+            subscriber.save()
+            if subscriber.balance > 0:
+                msgid = str(uuid.uuid4())
+                credit_update = PendingCreditUpdate(subscriber=subscriber, uuid=msgid, amount=0)
+                credit_update.save()
+                self.update_credit.delay(subscriber.imsi, msgid)
+        except Subscriber.DoesNotExist:
+            # Log subscriber not exists
+            pass
+        # Send notification to subscriber that balance is zero
