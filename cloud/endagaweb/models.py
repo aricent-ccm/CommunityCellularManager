@@ -930,35 +930,54 @@ class UsageEvent(models.Model):
             if SubscriberInvalidEvents.objects.filter(
                     subscriber=event.subscriber).exists():
 
-                # Subscriber is blocked after 3 counts i.e count will not be
-                # greater then 3 count
+                # Subscriber is blocked after 3 counts i.e there won't be UEs
+                # unless unblocked
 
                 subscriber_event = SubscriberInvalidEvents.objects.get(
                     subscriber=event.subscriber)
                 # if it is a 3rd event in 24hr block the subscriber
-                transactions_ids = subscriber_event.transactions + [event.transaction_id]
+                transactions_ids = subscriber_event.transactions + [
+                    event.transaction_id]
+                negative_transactions_ids = subscriber_event.negative_transactions + [
+                    dbutils.format_transaction(event.transaction_id,
+                                               negative=True)]
+
                 subscriber_event.count = subscriber_event.count + 1
                 subscriber_event.event_time = event.date
                 subscriber_event.transactions = transactions_ids
+                subscriber_event.negative_transactions = negative_transactions_ids
                 subscriber_event.save()
 
                 if subscriber_event.count == 3:
-                    subscriber.block = True
+                    subscriber.is_blocked = True
                     subscriber.block_reason = 'Repeated %s within 24 hours ' % (
                         '/'.join(INVALID_EVENTS),)
                     subscriber.block_time = django.utils.timezone.now()
                     subscriber.save()
+                    logger.info('Subscriber %s blocked for 30 minutes, '
+                                'repeated invalid transactions within 24 '
+                                'hours' % (
+                                    subscriber.imsi))
 
             else:
-                # print('_Creation_')
                 subscriber_event = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
                 subscriber_event.event_time = event.date
-                # subscriber_event.reason = subscriber_event.reason.append(
-                #     instance.reason)
                 subscriber_event.transactions = [event.transaction_id]
+                subscriber_event.negative_transactions = [
+                    dbutils.format_transaction(event.transaction_id,
+                                               negative=True)]
                 subscriber_event.save()
-
+        else:
+            # Delete the event if events are non-consecutive
+            try:
+                subscriber_event = SubscriberInvalidEvents.objects.get(subscriber=event.subscriber)
+                if not event.subscriber.is_blocked:
+                    logger.info('Subscriber %s invalid event removed' % (event.subscriber_imsi))
+                    subscriber_event.delete()
+            except:
+                # Do nothing
+                pass
 
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)
@@ -1032,7 +1051,7 @@ class Network(models.Model):
     # Whether or not to automatically delete inactive subscribers, and
     # associated parameters.
     sub_vacuum_enabled = models.BooleanField(default=False)
-    sub_vacuum_inactive_days = models.IntegerField(default=100)
+    sub_vacuum_inactive_days = models.IntegerField(default=180)
     sub_vacuum_grace_days = models.IntegerField(default=30)
 
     # csv of endpoints to notify for downtime
@@ -1526,14 +1545,16 @@ class Network(models.Model):
         authenticate.
         """
         if not instance.auth_group or not instance.auth_user:
-            instance.auth_group, created_group = Group.objects.get_or_create(name='%s_GROUP_%s' %
-                                                                                  (instance.name, instance.pk))
+            instance.auth_group, created_group = Group.objects.get_or_create(
+                name='%s_GROUP_%s' %
+                     (instance.name, instance.pk))
             if created_group:
                 assign_perm('view_network', instance.auth_group, instance)
 
             post_save.disconnect(UserProfile.new_user_hook, sender=User)
-            instance.auth_user, created_user = User.objects.get_or_create(username='%s_USER_%s' %
-                                                                                   (instance.name, instance.pk))
+            instance.auth_user, created_user = User.objects.get_or_create(
+                username='%s_USER_%s' %
+                         (instance.name, instance.pk))
             if created_user:
                 Token.objects.create(user=instance.auth_user)
                 instance.auth_group.user_set.add(instance.auth_user)
@@ -1936,7 +1957,9 @@ class Graph(models.Model):
 
 
 class SubscriberInvalidEvents(models.Model):
+    """ Invalid Events logs by Subscriber"""
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     count = models.PositiveIntegerField()
     event_time = models.DateTimeField(auto_now_add=True)
     transactions = ArrayField(models.UUIDField(), null=True)
+    negative_transactions = ArrayField(models.TextField(), null=True)

@@ -42,6 +42,7 @@ from endagaweb.models import Subscriber, Network
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
+from endagaweb.models import SubscriberInvalidEvents
 from endagaweb.ic_providers.nexmo import NexmoProvider
 
 
@@ -389,8 +390,8 @@ def downtime_notify(self):
             bts.status = 'inactive'
             bts.save()
             down_event = SystemEvent(
-                    date=django.utils.timezone.now(), bts=bts,
-                    type='bts down')
+                date=django.utils.timezone.now(), bts=bts,
+                type='bts down')
             down_event.save()
 
 @app.task(bind=True)
@@ -452,7 +453,9 @@ def unblock_blocked_subscribers(self):
     subscribers = Subscriber.objects.filter(is_blocked=True,
                                                block_time__lte=unblock_time)
     if not subscribers:
-        return # Do nothing
+        return  # Do nothing
+
+    # Todo(sagar): Remove Subscriber Entry from Subscriber's Invalid Event
     subscribers.update(is_blocked=False, block_time=None)
 
 
@@ -460,17 +463,17 @@ def unblock_blocked_subscribers(self):
 def subscriber_validity_state(self):
     """ Updates the subscribers state to inactive/active/"""
 
-    today = django.utils.timezone.now().date()
-    for subscriber in Subscriber.objects.iterator():
-        if not subscriber.network.sub_vacuum_enabled:
-            continue
+    today = django.utils.timezone.now()
+    subscribers = Subscriber.objects.filter(
+        number__valid_through__lte=today)
+    today = today.date()
+    for subscriber in subscribers:
         try:
             number = subscriber.number_set.all()[0]
             if number.valid_through is None:
                 continue
         except IndexError:
             continue
-
         subscriber_validity = number.valid_through.date()
         first_expire = subscriber_validity + datetime.timedelta(
             days=subscriber.network.sub_vacuum_inactive_days)
@@ -480,24 +483,21 @@ def subscriber_validity_state(self):
 
         if subscriber_validity < today and (current_state != 'inactive'):
             if today <= first_expire:
-                # Set subscriber as inactive
                 subscriber.state = 'inactive'
                 subscriber.save()
                 print "Updating subscriber(%s) state to 'Inactive'" % (
                     subscriber.imsi,)
             elif today > recycle:
-                # Set subscriber as recycle
+                # Also, let deactivation of subscriber be handled by
+                # vacuum_inactive_subscribers
                 if subscriber.prevent_automatic_deactivation:
                     continue
                 subscriber.state = 'recycle'
+                subscriber.save()
                 print "Updating subscriber(%s) state to 'Recycle'" % (
                     subscriber.imsi,)
-                # Lets not deactivate Subscriber and let it handled by
-                # vacuum_inactive_subscribers task
-                # subscriber.deactivate()
             else:
                 if current_state != 'first_expire':
-                    # Set subscriber as 1st expire
                     subscriber.state = 'first_expire'
                     subscriber.save()
                     print "Updating subscriber(%s) state to 'First Expire'" % (

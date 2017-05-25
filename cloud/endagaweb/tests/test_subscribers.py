@@ -13,16 +13,17 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import datetime as datetime2
+import uuid
 from datetime import datetime
 from random import randrange
-import uuid
 
 import pytz
-
 from django.test import TestCase
 
 from ccm.common import crdt
 from endagaweb import models
+from endagaweb import tasks
 
 
 class TestBase(TestCase):
@@ -36,9 +37,9 @@ class TestBase(TestCase):
     @classmethod
     def add_sub(cls, imsi,
                 ev_kind=None, ev_reason=None, ev_date=None,
-                balance=0):
+                balance=0, state='active'):
         sub = models.Subscriber.objects.create(
-            imsi=imsi, network=cls.network, balance=balance)
+            imsi=imsi, network=cls.network, balance=balance, state=state)
         if ev_kind:
             if ev_date is None:
                 ev_date = datetime.now(pytz.utc)
@@ -62,7 +63,7 @@ class TestBase(TestCase):
 
     @staticmethod
     def gen_imsi():
-        return 'IMSI0%014d' % (randrange(1, 1e10), )
+        return 'IMSI0%014d' % (randrange(1, 1e10),)
 
     @staticmethod
     def get_sub(imsi):
@@ -73,6 +74,7 @@ class SubscriberBalanceTests(TestBase):
     """
     We can manage subscriber balances.
     """
+
     def test_sub_get_balance(self):
         """ Test the balance property. """
         bal = randrange(1, 1000)
@@ -132,7 +134,7 @@ class ActiveSubscriberTests(TestBase):
         imsi = self.gen_imsi()
         sub = self.add_sub(imsi,
                            'Provisioned',
-                           'Provisioned %s' % (imsi, ),
+                           'Provisioned %s' % (imsi,),
                            ev_date=the_past)
         outbound_inactives = self.network.get_outbound_inactive_subscribers(
             days)
@@ -147,3 +149,120 @@ class ActiveSubscriberTests(TestBase):
         outbound_inactives = self.network.get_outbound_inactive_subscribers(
             days)
         self.assertFalse(sub in outbound_inactives)
+
+
+class SubscriberValidityTests(TestBase):
+    """
+    We can change subscriber state depending on its validity and can deactivate
+    after completion of threshold 
+    """
+
+    def setup_the_env(self, days=7):
+        imsi = self.gen_imsi()
+        self.subscriber = self.add_sub(imsi, balance=100, state='active')
+        # Set expired validity for the number
+        validity = datetime.now(pytz.utc) - datetime2.timedelta(days=days)
+        self.bts = models.BTS(uuid="133222", nickname="test-bts-name!",
+                              inbound_url="http://localhost/133222/test",
+                              network=self.network)
+        self.bts.save()
+        self.number = models.Number(
+            number='5559234', state="inuse", network=self.bts.network,
+            kind="number.nexmo.monthly", subscriber=self.subscriber,
+            valid_through=validity)
+        net = models.Network.objects.get(id=self.bts.network.id)
+        net.sub_vacuum_enabled = True
+        net.sub_vacuum_inactive_days = 180
+        net.sub_vacuum_grace_days = 30
+        self.number.save()
+        net.save()
+
+    def test_subscriber_inactive(self):
+        # Set subscriber's validity 7 days earlier then current date
+        self.setup_the_env(days=7)
+        tasks.subscriber_validity_state()
+        subscriber = models.Subscriber.objects.get(id=self.subscriber.id)
+        self.assertEqual(subscriber.state, 'inactive')
+
+    def test_subscriber_expired(self):
+        # Set subscriber's validity more than threshold days
+        days = self.network.sub_vacuum_inactive_days
+        self.setup_the_env(days=days + 1)
+        tasks.subscriber_validity_state()
+        subscriber = models.Subscriber.objects.get(id=self.subscriber.id)
+        self.assertEqual(subscriber.state, 'first_expire')
+
+    def test_subscriber_recycle(self):
+        # Set subscriber's validity days more than grace period and
+        # threshold days
+        days = self.network.sub_vacuum_inactive_days + self.network.sub_vacuum_grace_days
+        self.setup_the_env(days=days + 1)
+        tasks.subscriber_validity_state()
+        subscriber = models.Subscriber.objects.get(id=self.subscriber.id)
+        self.assertEqual(subscriber.state, 'recycle')
+
+
+class BlockUnblockSubscriberTests(TestBase):
+    """
+    We can block subscriber on three consecutive invalid activities
+    """
+    def setup_the_env(self):
+        imsi = self.gen_imsi()
+        self.subscriber = self.add_sub(imsi, balance=100, state='active')
+        self.number = models.Number(
+            number='5559234', state="inuse", network=self.subscriber.network,
+            kind="number.nexmo.monthly", subscriber=self.subscriber)
+        net = models.Network.objects.get(id=self.subscriber.network.id)
+        self.number.save()
+        net.save()
+
+    def test_generate_an_event(self, subscriber_id=None,
+                                    kind='error_call'):
+        now = datetime.now(pytz.utc)
+        self.setup_the_env()
+        if subscriber_id is None:
+            subscriber_id = self.subscriber.id
+
+        event = models.UsageEvent.objects.create(
+            subscriber_id=subscriber_id, date=now, kind=kind,
+            reason='some reason (''error_call)')
+        event.save()
+
+    def test_subscriber_is_block(self):
+        """
+        Set subscriber to Block state if 'consecutive' 3 error_call/sms UEs
+        :return: 
+        """
+
+        # First invalid UE
+        self.test_generate_an_event(kind='error_sms')
+        subscriber = models.Subscriber.objects.get(id=self.subscriber.id)
+        self.assertEqual(subscriber.is_blocked, False)
+
+        # Interrupted consecutive count with valid UE
+        self.test_generate_an_event(subscriber_id=subscriber.id,
+                                         kind='sms')
+        subscriber = models.Subscriber.objects.get(id=subscriber.id)
+        self.assertEqual(subscriber.is_blocked, False)
+        # Removed if it exists
+        invalid_event = models.SubscriberInvalidEvents.objects.filter(
+            subscriber=subscriber).exists()
+        self.assertEqual(invalid_event, False)
+
+        # First invalid UE again
+        self.test_generate_an_event(subscriber_id=subscriber.id,
+                                         kind='error_sms')
+        subscriber = models.Subscriber.objects.get(id=subscriber.id)
+        self.assertEqual(subscriber.is_blocked, False)
+
+        # Second invalid UE
+        self.test_generate_an_event(subscriber_id=subscriber.id,
+                                         kind='error_call')
+        subscriber = models.Subscriber.objects.get(id=subscriber.id)
+        self.assertEqual(subscriber.is_blocked, False)
+
+        # Third consecutive invalid UE again
+        self.test_generate_an_event(subscriber_id=subscriber.id,
+                                         kind='error_sms')
+        subscriber = models.Subscriber.objects.get(id=subscriber.id)
+        self.assertEqual(subscriber.is_blocked, True)
