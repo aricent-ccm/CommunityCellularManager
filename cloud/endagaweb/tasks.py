@@ -42,8 +42,12 @@ from endagaweb.models import ConfigurationKey
 from endagaweb.models import Subscriber
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
+<<<<<<< HEAD
 from endagaweb.models import TimeseriesStat
 from endagaweb.models import Number
+=======
+from endagaweb.models import TimeseriesStat,UserProfile
+>>>>>>> origin/Sprint2_securityFeature
 from endagaweb.ic_providers.nexmo import NexmoProvider
 from ccm.common import crdt
 
@@ -461,3 +465,17 @@ def zero_out_subscribers_balance(self):
     except Exception as e:
         # log the error, but ignore it.
         print ("Exception occured : %s" % (e))
+
+@app.task(bind=True)
+def block_user(self):
+    """ Block  User if User password is not updated
+    for last 90 days
+    """
+    six_month_ago = (django.utils.timezone.now() -
+                        datetime.timedelta(days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
+
+    user_profiles = UserProfile.objects.filter(last_pwd_update__lte=six_month_ago)
+    for userProfile in user_profiles:
+        userProfile.user.is_active = False
+        print '%s user is Blocked!' % userProfile.user.username
+        userProfile.user.save()
