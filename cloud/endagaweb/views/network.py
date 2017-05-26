@@ -523,13 +523,26 @@ class NetworkDenomination(ProtectedView):
         try:
             currency = network.subscriber_currency
             start_amount_raw = request.POST.get('start_amount')
-            start_amount = parse_credits(start_amount_raw,
-                                   CURRENCIES[currency]).amount_raw
+            start_amount = parse_credits(start_amount_raw, CURRENCIES[currency]).amount_raw
             end_amount_raw = request.POST.get('end_amount')
-            end_amount = parse_credits(end_amount_raw,
-                                         CURRENCIES[currency]).amount_raw
-            validity_days = request.POST.get('validity_days')
+            end_amount = parse_credits(end_amount_raw, CURRENCIES[currency]).amount_raw
+            validity_days = int(request.POST.get('validity_days')) or 0
             dnm_id = int(request.POST.get('dnm_id')) or 0
+            if start_amount <= 0 or end_amount <= 0:
+                messages.warning(
+                    request, 'Start/End amount should be positive value.',
+                    extra_tags='alert alert-warning')
+                return redirect(urlresolvers.reverse('network-denominations'))
+            elif validity_days <= 0:
+                messages.warning(
+                    request, 'Validity can not be 0 day.',
+                    extra_tags='alert alert-warning')
+                return redirect(urlresolvers.reverse('network-denominations'))
+            elif end_amount <= start_amount:
+                messages.warning(
+                    request, 'Start amount should be greater than end amount.',
+                    extra_tags='alert alert-warning')
+                return redirect(urlresolvers.reverse('network-denominations'))
 
             with transaction.atomic():
                 user_profile = models.UserProfile.objects.get(user=request.user)

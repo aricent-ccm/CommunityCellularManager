@@ -70,7 +70,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                         Start Amount <span class="aseriskField">*</span>
                                     </label>
                                     <div class="input-group col-xs-8">
-                                        <input class="form-control" type="number" id="start_amount" name="start_amount"
+                                        <input class="form-control number" type="text" id="start_amount" name="start_amount"
                                                placeholder="Enter start amount" required/>
                                     </div>
                                 </div>
@@ -78,11 +78,11 @@ of patent rights can be found in the PATENTS file in the same directory.
 
                             <div class="form-group row">
                                 <div class="col-md-12">
-                                    <label for="start_amount" id="ariaLable" class="col-3 col-form-label">
+                                    <label for="end_amount" id="ariaLable" class="col-3 col-form-label">
                                         End Amount <span class="aseriskField">*</span>
                                     </label>
                                     <div class="input-group col-xs-8">
-                                        <input class="form-control" type="number" id="end_amount" name="end_amount"
+                                        <input class="form-control number" type="text" id="end_amount" name="end_amount"
                                                placeholder="Enter end amount" required/>
                                     </div>
                                 </div>
@@ -95,7 +95,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                     </label>
                                     <div class="input-group col-xs-8">
                                         <input class="form-control" type="number" id="validity_days" name="validity_days"
-                                               placeholder="Enter validity as number of days" required/>
+                                               placeholder="Enter validity as number of days" onkeypress='return event.charCode >= 48 && event.charCode <= 57' required/>
                                     </div>
                                 </div>
                             </div>
@@ -146,8 +146,46 @@ of patent rights can be found in the PATENTS file in the same directory.
 
     <script type="text/javascript"
             src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.11.1/jquery.validate.min.js"></script>
-    <script>
+    <script type="text/javascript">
         $(document).ready(function () {
+            $('.number').keypress(function (event) {
+                var $this = $(this);
+                if ((event.which != 46 || $this.val().indexOf('.') != -1) &&
+                    ((event.which < 48 || event.which > 57) &&
+                    (event.which != 0 && event.which != 8))) {
+                    event.preventDefault();
+                }
+
+                var text = $(this).val();
+                if ((event.which == 46) && (text.indexOf('.') == -1)) {
+                    setTimeout(function () {
+                        if ($this.val().substring($this.val().indexOf('.')).length > 3) {
+                            $this.val($this.val().substring(0, $this.val().indexOf('.') + 3));
+                        }
+                    }, 1);
+                }
+
+                if ((text.indexOf('.') != -1) &&
+                    (text.substring(text.indexOf('.')).length > 2) &&
+                    (event.which != 0 && event.which != 8) &&
+                    ($(this)[0].selectionStart >= text.length - 2)) {
+                    event.preventDefault();
+                }
+            });
+
+            $('.number').bind("paste", function (e) {
+                var text = e.originalEvent.clipboardData.getData('Text');
+                if ($.isNumeric(text)) {
+                    if ((text.substring(text.indexOf('.')).length > 3) && (text.indexOf('.') > -1)) {
+                        e.preventDefault();
+                        $(this).val(text.substring(0, text.indexOf('.') + 3));
+                    }
+                }
+                else {
+                    e.preventDefault();
+                }
+            });
+
             $('#network_form').validate({
                 highlight: function (element) {
                     $(element).closest('.form-group').addClass('has-error');
