@@ -41,6 +41,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
     <div class='row'>
         {% include "dashboard/network_detail/nav.html" with active_tab='network-denominations' %}
+
         <div class='content col-xs-12 col-sm-10 col-md-6'>
             {% for message in messages %}
             <div class="message alert alert-{{message.tags}}">
@@ -49,14 +50,18 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             {% endfor %}
             <div class="table-container">
-                {% if denomination %}
-                {% render_table denominations_table %}
+                {% if user_profile.user.is_staff %}
+                    {% if denomination %}
+                    {% render_table denominations_table %}
+                    {% else %}
+                        <p>There are currently no denominations associated with this network.</p>
+                    {% endif %}
                 {% else %}
-                    <p>There are currently no denominations associated with this network.</p>
+                    <p>Permission denied! Please contact to administrator</p>
                 {% endif %}
             </div>
-
         </div>
+        {% if user_profile.user.is_staff %}
         <div class='content col-xs-12 col-sm-10 col-md-4'>
             <div class="panel panel-default">
                 <div class="panel-heading">Create Denomination</div>
@@ -104,7 +109,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                 <div class="col-md-12">
                                     <div class="input-group col-xs-8">
                                         <input type="hidden" id="dnm_id" name="dnm_id" value="0" />
-                                        <input type="submit" id="submit" class="btn btn-primary pull-right" value="Submit"/>
+                                        <input type="submit" id="submit" class="btn btn-primary pull-right" value="Create"/>
                                         <input type="button" id="cancel" class="btn btn-primary pull-right" value="Cancel" style="display: none;"/>
                                     </div>
                                 </div>
@@ -114,6 +119,8 @@ of patent rights can be found in the PATENTS file in the same directory.
                 </div>
             </div>
         </div>
+        {% endif %}
+
     </div>
 
     <div class='modal fade' id='delete-denom-modal'>
@@ -171,7 +178,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                 $('#end_amount').val('');
                 $('#validity_days').val('');
                 $('.panel-heading').html("Create Denomination");
-                $('#submit').val("Submit");
+                $('#submit').val("Create");
                 $('#cancel').hide();
                 $('table tbody tr').removeClass('highlight');
             });

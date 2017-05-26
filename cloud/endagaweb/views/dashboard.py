@@ -1258,7 +1258,7 @@ class UserBlockUnblock(ProtectedView):
             return HttpResponse(message)
 
         message = 'Cannot %s %s' % (current_status, user.username)
-        messages.INFO(request, message)
+        messages.info(request, message)
         return HttpResponse(message)
 
 
@@ -1336,8 +1336,6 @@ class SubscriberCategoryEdit(ProtectedView):
                 message = "IMSI category update cannot happen"
                 messages.error(request, message,
                                extra_tags="alert alert-danger")
-
             return HttpResponse(message)
         else:
-
             return HttpResponseBadRequest()

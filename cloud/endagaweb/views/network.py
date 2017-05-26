@@ -595,6 +595,11 @@ class NetworkDenomination(ProtectedView):
                                          CURRENCIES[currency]).amount_raw
             validity_days = request.POST.get('validity_days')
             dnm_id = int(request.POST.get('dnm_id')) or 0
+            if end_amount <= start_amount:
+                messages.warning(
+                    request, 'Start amount should be greater than end amount.',
+                    extra_tags='alert alert-warning')
+                return redirect(urlresolvers.reverse('network-denominations'))
 
             with transaction.atomic():
                 user_profile = models.UserProfile.objects.get(user=request.user)
@@ -608,7 +613,7 @@ class NetworkDenomination(ProtectedView):
                                 start_amount__lte=end_amount,
                                 network=user_profile.network).exclude(id=dnm_id).count()
                             if denom_exists:
-                                messages.warning(
+                                messages.error(
                                     request, 'Denomination range already exists. Please enter valid start - end value.',
                                     extra_tags='alert alert-warning')
                                 return redirect(urlresolvers.reverse('network-denominations'))
@@ -616,6 +621,7 @@ class NetworkDenomination(ProtectedView):
                             messages.error(
                                 request, 'Invalid denomination ID. Please try again.',
                                 extra_tags='alert alert-danger')
+                            return redirect(urlresolvers.reverse('network-denominations'))
                     else:
                         # Check for existing denomination range exist.
                         denom_exists = models.NetworkDenomination.objects.filter(
@@ -623,7 +629,7 @@ class NetworkDenomination(ProtectedView):
                             start_amount__lte=end_amount,
                             network=user_profile.network).count()
                         if denom_exists:
-                            messages.warning(
+                            messages.error(
                                 request, 'Denomination range already exists. Please enter valid start - end value.',
                                 extra_tags='alert alert-warning')
                             return redirect(urlresolvers.reverse('network-denominations'))

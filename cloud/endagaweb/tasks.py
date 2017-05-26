@@ -45,6 +45,7 @@ from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
 from endagaweb.models import Number
 from endagaweb.ic_providers.nexmo import NexmoProvider
+from ccm.common import crdt
 
 
 @app.task(bind=True)
@@ -448,22 +449,16 @@ def zero_out_subscribers_balance(self):
 
     This runs this as a periodic task managed by celerybeat.
     """
-    today = django.utils.timezone.now()
-    numbers = Number.objects.filter(valid_through__lte=today)
-    for number in numbers:
-        # Update subscriber status to expired and balance zero out
-        number.state = 'expired'
-        number.save()
-        try:
-            subscriber = Subscriber.objects.get(id = number.subscriber_id)
-            subscriber.state = 'expired'
+    try:
+        today = django.utils.timezone.now()
+        subscribers = Subscriber.objects.filter(number__valid_through__lte=today)
+        print "subscribers = ", subscribers
+        for subscriber in subscribers:
+            # Update subscriber status to first_expire and balance zero out
+            subscriber.state = 'first_expire'
+            subscriber.crdt_balance = crdt.PNCounter("default").serialize()
             subscriber.save()
-            if subscriber.balance > 0:
-                msgid = str(uuid.uuid4())
-                credit_update = PendingCreditUpdate(subscriber=subscriber, uuid=msgid, amount=0)
-                credit_update.save()
-                self.update_credit.delay(subscriber.imsi, msgid)
-        except Subscriber.DoesNotExist:
-            # Log subscriber not exists
-            pass
-        # Send notification to subscriber that balance is zero
+            #subscriber.zero_balance()
+    except Exception as e:
+        # log the error, but ignore it.
+        print ("Exception occured : %s" % (e))
