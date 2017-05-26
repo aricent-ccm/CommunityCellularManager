@@ -13,10 +13,12 @@ from __future__ import absolute_import
 import csv
 import datetime
 import json
-import time
 import os
-import paramiko
+import time
 import zipfile
+
+import paramiko
+
 try:
     # we only import zlib here to check that it is available
     # (why would it not be?), so we have to disable the 'unused' warning
@@ -35,14 +37,12 @@ import requests
 
 from endagaweb.celery import app
 from endagaweb.models import BTS
-from endagaweb.models import Network
 from endagaweb.models import PendingCreditUpdate
 from endagaweb.models import ConfigurationKey
 from endagaweb.models import Subscriber, Network
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
-from endagaweb.models import SubscriberInvalidEvents
 from endagaweb.ic_providers.nexmo import NexmoProvider
 
 

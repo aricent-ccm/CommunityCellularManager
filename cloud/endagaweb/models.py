@@ -919,13 +919,13 @@ class UsageEvent(models.Model):
 
     @staticmethod
     def if_invalid_events(sender, instance=None, created=False, **kwargs):
-        # Let's Clear the entries after some specific time 10 days or 30 days
-        # older first! Add some code to delete 24hr older entries
+        # Check for any invalid event and make an entry
         if not created:
             return
         event = instance
         if event.kind in INVALID_EVENTS:
             subscriber = Subscriber.objects.get(imsi=event.subscriber_imsi)
+
             if SubscriberInvalidEvents.objects.filter(
                     subscriber=event.subscriber).exists():
                 # Subscriber is blocked after 3 counts i.e there won't be UEs

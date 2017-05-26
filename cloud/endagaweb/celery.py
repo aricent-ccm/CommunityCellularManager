@@ -9,12 +9,11 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import absolute_import
 
-from datetime import timedelta
 import os
+from datetime import timedelta
 
 from celery import Celery
 from celery.schedules import crontab
-
 from django.conf import settings
 
 assert 'DJANGO_SETTINGS_MODULE' in os.environ
@@ -52,6 +51,6 @@ app.conf.update(CELERYBEAT_SCHEDULE={
     }, 'unblock-blocked-subscriber': {
         'task': 'endagaweb.tasks.unblock_blocked_subscribers',
         # Run this in every hour
-        'schedule': crontab(minute=59),
+        'schedule': crontab(minute='*'),
     }
 })
