@@ -42,8 +42,9 @@ from endagaweb.models import ConfigurationKey
 from endagaweb.models import Subscriber, Network
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
-from endagaweb.models import TimeseriesStat
+from endagaweb.models import TimeseriesStat, UserProfile
 from endagaweb.ic_providers.nexmo import NexmoProvider
+from ccm.common import crdt
 
 
 @app.task(bind=True)
@@ -442,7 +443,6 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
     finally:
       obj.save()
 
-
 @app.task(bind=True)
 def unblock_blocked_subscribers(self):
     """Unblock subscribers who are blocked for past 24 hrs.
@@ -503,7 +503,6 @@ def subscriber_validity_state(self):
                     print "Updating subscriber(%s) state to 'First Expire'" % (
                         subscriber.imsi,)
 
-
 @app.task(bind=True)
 def validity_expiry_sms(self, days=7):
     """Sends SMS to the number whose validity is:
@@ -561,3 +560,36 @@ def validity_expiry_sms(self, days=7):
                 sms_notification(body=body, to=number)
         else:
             return  # Do nothing
+
+@app.task(bind=True)
+def zero_out_subscribers_balance(self):
+    """Subscriber balance zero outs if validity expires.
+
+    This runs this as a periodic task managed by celerybeat.
+    """
+    try:
+        today = django.utils.timezone.now()
+        subscribers = Subscriber.objects.filter(number__valid_through__lte=today)
+        print "subscribers = ", subscribers
+        for subscriber in subscribers:
+            # Update subscriber status to first_expire and balance zero out
+            subscriber.state = 'first_expire'
+            subscriber.crdt_balance = crdt.PNCounter("default").serialize()
+            subscriber.save()
+    except Exception as e:
+        # log the error, but ignore it.
+        print ("Exception occured : %s" % (e))
+
+@app.task(bind=True)
+def block_user(self):
+    """ Block  User if User password is not updated
+    for last 90 days
+    """
+    six_month_ago = (django.utils.timezone.now() -
+                        datetime.timedelta(days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
+
+    user_profiles = UserProfile.objects.filter(last_pwd_update__lte=six_month_ago)
+    for userProfile in user_profiles:
+        userProfile.user.is_active = False
+        print '%s user is Blocked!' % userProfile.user.username
+        userProfile.user.save()

@@ -277,6 +277,10 @@ ENDAGA = {
     # Enable/disable billing for networks. If false, we ignore what's in the
     # network's account balance.
     'NW_BILLING': os.environ.get("NW_BILLING", "True").lower() == "true",
+    # Password Expiration day
+    'PASSWORD_EXPIRED_DAY': 90,
+    # Password Expiry Alert
+    'PASSSWORD_EXPIRED_LAST_SEVEN_DAYS': 83,
 }
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY",

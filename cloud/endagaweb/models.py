@@ -20,12 +20,17 @@ import logging
 import time
 import uuid
 
+import django.utils.timezone
+import itsdangerous
+import pytz
+import stripe
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
 from django.contrib.postgres.fields import ArrayField
 from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import connection
 from django.db import models
 from django.db import transaction
@@ -33,10 +38,6 @@ from django.db.models import F
 from django.db.models.signals import post_save
 from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
-import django.utils.timezone
-import itsdangerous
-import pytz
-import stripe
 
 from ccm.common import crdt, logger
 from ccm.common.currency import humanize_credits, CURRENCIES
@@ -74,7 +75,8 @@ class UserProfile(models.Model):
     timezone_choices = [(v, v) for v in pytz.common_timezones]
     timezone = models.CharField(max_length=50, default='UTC',
                                 choices=timezone_choices)
-    role = models.CharField(max_length=20, default='cloud_admin')
+    role = models.CharField(max_length=20,default='cloud_admin')
+
     # A UI kludge indicate which network a user is currently viewing
     # Important: This is not the only network a User is associated with
     # because a user may have permissions on other Network instances.
@@ -82,6 +84,8 @@ class UserProfile(models.Model):
     # >>> get_objects_for_user(user_profile.user, 'view_network', klass=Network)
     network = models.ForeignKey('Network', null=True,
                                 on_delete=models.SET_NULL)
+    # Added for Password Expiry
+    last_pwd_update = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return "%s's profile" % self.user
@@ -1083,6 +1087,9 @@ class Network(models.Model):
     # Network environments let you specify things like "prod", "test", "dev",
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
+    #Added for Network Balance Limit
+    max_amount_limit = models.BigIntegerField(default=0)
+    max_failuer_Transaction = models.IntegerField(default=10)
 
     class Meta:
         default_permissions = ()
@@ -1567,6 +1574,26 @@ post_save.connect(Network.create_ledger, sender=Network)
 post_save.connect(Network.create_auth, sender=Network)
 post_save.connect(Network.set_network_defaults, sender=Network)
 post_save.connect(Network.create_billing_tiers, sender=Network)
+
+
+class NetworkDenomination(models.Model):
+    """Network has its own denomination bracket for rechange and validity
+
+    Subscriber status depends on recharge under denomination bracket
+    """
+    start_amount = models.BigIntegerField()
+    end_amount = models.BigIntegerField()
+    validity_days = models.PositiveIntegerField(blank=True, default=0)
+
+    # The denomination group associated with the network
+    network = models.ForeignKey('Network', null=True, on_delete=models.CASCADE)
+
+    def __unicode__(self):
+        return "Amount %s - %d  for %s(days)" % (
+            self.start_amount, self.end_amount, self.validity_days)
+
+    class Meta:
+        ordering = ('start_amount',)
 
 
 class ConfigurationKey(models.Model):

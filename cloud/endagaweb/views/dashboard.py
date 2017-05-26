@@ -46,9 +46,10 @@ from ccm.common.currency import parse_credits, humanize_credits, \
 from endagaweb import tasks
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
-                              Network, PendingCreditUpdate, Number)
+                              Network, NetworkDenomination, PendingCreditUpdate, Number)
 from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
+import json
 
 
 class ProtectedView(View):
@@ -304,6 +305,12 @@ class SubscriberInfo(ProtectedView):
                 'date')[0].date
         except IndexError:
             context['created'] = None
+        try:
+            # Get balance expire date for subscriber's first number and from some admin number.
+            number_details = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
+            context['valid_through'] = number_details.valid_through
+        except Number.DoesNotExist:
+            context['valid_through'] = None
         # Set usage info (SMS sent, total call duration, data usage).
         sms_kinds = ['free_sms', 'outside_sms', 'incoming_sms', 'local_sms',
                      'local_recv_sms', 'error_sms']
@@ -530,29 +537,30 @@ class SubscriberAdjustCredit(ProtectedView):
         try:
             subscriber = Subscriber.objects.get(imsi=imsi,
                                                 network=network)
+            # Set the response context.
+            pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
+                'date')
+            initial_form_data = {
+                'imsi': subscriber.imsi,
+            }
+            context = {
+                'networks': get_objects_for_user(request.user,
+                                                 'view_network', klass=Network),
+                'currency': CURRENCIES[network.subscriber_currency],
+                'user_profile': user_profile,
+                'subscriber': subscriber,
+                'pending_updates': pending_updates,
+                'credit_update_form': dform.SubscriberCreditUpdateForm(
+                    initial=initial_form_data),
+            }
+            # Render template.
+            template = get_template(
+                'dashboard/subscriber_detail/adjust_credit.html')
+            html = template.render(context, request)
+            return HttpResponse(html)
         except Subscriber.DoesNotExist:
-            return HttpResponseBadRequest()
-        # Set the response context.
-        pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
-            'date')
-        initial_form_data = {
-            'imsi': subscriber.imsi,
-        }
-        context = {
-            'networks': get_objects_for_user(request.user,
-                                             'view_network', klass=Network),
-            'currency': CURRENCIES[network.subscriber_currency],
-            'user_profile': user_profile,
-            'subscriber': subscriber,
-            'pending_updates': pending_updates,
-            'credit_update_form': dform.SubscriberCreditUpdateForm(
-                initial=initial_form_data),
-        }
-        # Render template.
-        template = get_template(
-            'dashboard/subscriber_detail/adjust_credit.html')
-        html = template.render(context, request)
-        return HttpResponse(html)
+            return dashboard_view(request)
+
 
     def post(self, request, imsi=None):
         """Operators can use this API to add credit to a subscriber.
@@ -575,21 +583,52 @@ class SubscriberAdjustCredit(ProtectedView):
         if 'amount' not in request.POST:
             return HttpResponseBadRequest()
         error_text = 'Error: credit value must be between -10M and 10M.'
+
         try:
             currency = network.subscriber_currency
             amount = parse_credits(request.POST['amount'],
                                    CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
+                error_text = 'Error: Credit value must be between -10M and 10M.'
+                raise ValueError(error_text)
+            if sub.balance + amount > network.max_amount_limit:
+                error_text = 'Don\'t have enough network credit. Crossed Network limit credit. '
+                raise ValueError(error_text)
+            try:
+                # Check for existing denomination range exist.
+                denom_exists = NetworkDenomination.objects.get(
+                    start_amount__lte=amount,
+                    end_amount__gte=amount,
+                    network=network)
+                # Update user validity for recharge denomination amount
+                if denom_exists.validity_days > 0:
+                    now = datetime.datetime.now(pytz.UTC)
+                    expiry_date = now + datetime.timedelta(days=denom_exists.validity_days)
+                    try:
+                        # Get subscriber's first number and from some admin number.
+                        num = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
+                        num.valid_through = expiry_date
+                        if num.valid_through is None:
+                            num.save()
+                        elif expiry_date >= num.valid_through:
+                            num.save()
+                    except Number.DoesNotExist:
+                        error_text = 'Error: Subscriber has no number assigned.'
+                        raise ValueError(error_text)
+            except NetworkDenomination.DoesNotExist:
+                error_text = 'Error: Credit value must be in denomination range.'
                 raise ValueError(error_text)
         except ValueError:
-            messages.error(request, error_text)
+            messages.error(request, error_text,
+                         extra_tags="alert alert-danger")
             return adjust_credit_redirect
         # Validation suceeded, create a PCU and start the update credit task.
         msgid = str(uuid.uuid4())
-        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid,
-                                            amount=amount)
+        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
         credit_update.save()
         tasks.update_credit.delay(sub.imsi, msgid)
+        messages.success(request, "Amount credited to subscriber successfully.",
+                         extra_tags="alert alert-success")
         return adjust_credit_redirect
 
     def delete(self, request, imsi=None):
@@ -710,6 +749,12 @@ class ActivityView(ProtectedView):
             request.session['end_date'] = request.POST.get('end_date', None)
             request.session['services'] = request.POST.getlist('services[]',
                                                                None)
+            # Added to check password to download the csv
+            if (request.user.check_password(request.POST.get('password'))):
+                response={'status':'ok','message':'authorize' }
+                return HttpResponse(json.dumps(response),
+                                    content_type="application/json")
+
             # We always just do a redirect to GET. We include page reference
             # to retain the search parameters in the session.
             return redirect(urlresolvers.reverse('network-activity') +
@@ -1220,7 +1265,7 @@ class UserBlockUnblock(ProtectedView):
             return HttpResponse(message)
 
         message = 'Cannot %s %s' % (current_status, user.username)
-        messages.INFO(request, message)
+        messages.info(request, message)
         return HttpResponse(message)
 
 
@@ -1298,8 +1343,6 @@ class SubscriberCategoryEdit(ProtectedView):
                 message = "IMSI category update cannot happen"
                 messages.error(request, message,
                                extra_tags="alert alert-danger")
-
             return HttpResponse(message)
         else:
-
             return HttpResponseBadRequest()

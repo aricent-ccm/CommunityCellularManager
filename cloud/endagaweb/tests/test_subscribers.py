@@ -14,11 +14,13 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import datetime as datetime2
+import json
 import uuid
 from datetime import datetime
 from random import randrange
 
 import pytz
+from django import test
 from django.test import TestCase
 
 from ccm.common import crdt
@@ -27,12 +29,25 @@ from endagaweb import tasks
 
 
 class TestBase(TestCase):
+
     @classmethod
-    def setUpTestData(cls):
-        user = models.User(username="km", email="k@m.com")
-        user.save()
-        user_profile = models.UserProfile.objects.get(user=user)
-        cls.network = user_profile.network
+    def setUpClass(cls):
+        cls.user = models.User(username="km", email="k@m.com")
+        cls.user.set_password('pw')
+        cls.user.save()
+        cls.user_profile = models.UserProfile.objects.get(user=cls.user)
+        cls.network = cls.user_profile.network
+
+        # Create a test client.
+        cls.client = test.Client()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.user.delete()
+        cls.user_profile.delete()
+
+    def tearDown(self):
+        self.logout()
 
     @classmethod
     def add_sub(cls, imsi,
@@ -68,6 +83,18 @@ class TestBase(TestCase):
     @staticmethod
     def get_sub(imsi):
         return models.Subscriber.objects.get(imsi=imsi)
+
+    def login(self):
+        """Log the client in."""
+        data = {
+            'email': 'km',
+            'password': 'pw'
+        }
+        self.client.post('/auth/', data)
+
+    def logout(self):
+        """Log the client out."""
+        self.client.get('/logout')
 
 
 class SubscriberBalanceTests(TestBase):
@@ -266,3 +293,72 @@ class BlockUnblockSubscriberTests(TestBase):
                                          kind='error_sms')
         subscriber = models.Subscriber.objects.get(id=subscriber.id)
         self.assertEqual(subscriber.is_blocked, True)
+
+
+class SubscriberUITest(TestBase):
+    """Testing that we can add User in the UI."""
+
+    def test_subscriber(self):
+        """Subscriber management page without login """
+        self.logout()
+        response = self.client.get('/dashboard/subscriber_management/subscriber')
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
+
+    def test_subscriber_auth(self):
+        """Subscriber management page with valid logged in user """
+        self.login()
+        response = self.client.get('/dashboard/subscriber_management/subscriber')
+        self.assertEqual(200, response.status_code)
+
+    def test_post_subscriber(self):
+        self.logout()
+        data = {
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
+        }
+        response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
+        # Anonymous User can not see this page so returning  permission denied.
+        self.assertEqual(302, response.status_code)
+
+    def test_post_subscriber_auth(self):
+        self.login()
+        data = {
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
+        }
+        response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
+        self.assertEqual(200, response.status_code)
+
+    def test_successful_post_subscriber_auth(self):
+        """When subscriber update succeeds, we send a 'message' """
+        self.login()
+        imsi = self.gen_imsi()
+        bal = randrange(1, 1000)
+        self.add_sub(imsi, balance=bal)
+        data = {
+            'category': "Subscriber",
+            'imsi_val[]': imsi
+        }
+        response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
+        # We'll get back JSON (the page reload will be triggered in js).
+        expected_response = {
+            'message':"IMSI category updated successfully"
+        }
+        self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
+
+    def test_fail_post_subscriber_auth(self):
+        """When subscriber update succeeds, we send a 'message' """
+        self.login()
+        data = {
+            'category': "Subscriber",
+            'imsi_val[]': self.gen_imsi()
+        }
+        response = self.client.post('/dashboard/subscriber_management/categoryupdate', data)
+        # We'll get back JSON (the page reload will be triggered in js).
+        expected_response = {
+            'message':"IMSI category update cannot happen"
+        }
+        self.assertEqual(expected_response, json.loads(response.content))
+        self.assertEqual(200, response.status_code)
