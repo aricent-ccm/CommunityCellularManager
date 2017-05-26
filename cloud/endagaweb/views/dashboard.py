@@ -584,10 +584,11 @@ class SubscriberAdjustCredit(ProtectedView):
                     try:
                         # Get subscriber's first number and from some admin number.
                         num = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
-                        num.valid_through = expiry_date
                         if num.valid_through is None:
+                            num.valid_through = expiry_date
                             num.save()
                         elif expiry_date >= num.valid_through:
+                            num.valid_through = expiry_date
                             num.save()
                     except Number.DoesNotExist:
                         error_text = 'Error: Subscriber has no number assigned.'
