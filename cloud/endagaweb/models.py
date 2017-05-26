@@ -926,13 +926,10 @@ class UsageEvent(models.Model):
         event = instance
         if event.kind in INVALID_EVENTS:
             subscriber = Subscriber.objects.get(imsi=event.subscriber_imsi)
-
             if SubscriberInvalidEvents.objects.filter(
                     subscriber=event.subscriber).exists():
-
                 # Subscriber is blocked after 3 counts i.e there won't be UEs
                 # unless unblocked
-
                 subscriber_event = SubscriberInvalidEvents.objects.get(
                     subscriber=event.subscriber)
                 # if it is a 3rd event in 24hr block the subscriber
@@ -941,13 +938,11 @@ class UsageEvent(models.Model):
                 negative_transactions_ids = subscriber_event.negative_transactions + [
                     dbutils.format_transaction(event.transaction_id,
                                                negative=True)]
-
                 subscriber_event.count = subscriber_event.count + 1
                 subscriber_event.event_time = event.date
                 subscriber_event.transactions = transactions_ids
                 subscriber_event.negative_transactions = negative_transactions_ids
                 subscriber_event.save()
-
                 if subscriber_event.count == 3:
                     subscriber.is_blocked = True
                     subscriber.block_reason = 'Repeated %s within 24 hours ' % (
@@ -958,7 +953,6 @@ class UsageEvent(models.Model):
                                 'repeated invalid transactions within 24 '
                                 'hours' % (
                                     subscriber.imsi))
-
             else:
                 subscriber_event = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
@@ -968,16 +962,15 @@ class UsageEvent(models.Model):
                     dbutils.format_transaction(event.transaction_id,
                                                negative=True)]
                 subscriber_event.save()
-        else:
+        elif SubscriberInvalidEvents.objects.filter(
+                subscriber=event.subscriber).count() > 0:
             # Delete the event if events are non-consecutive
-            try:
-                subscriber_event = SubscriberInvalidEvents.objects.get(subscriber=event.subscriber)
-                if not event.subscriber.is_blocked:
-                    logger.info('Subscriber %s invalid event removed' % (event.subscriber_imsi))
-                    subscriber_event.delete()
-            except:
-                # Do nothing
-                pass
+            if not event.subscriber.is_blocked:
+                subscriber_event = SubscriberInvalidEvents.objects.get(
+                    subscriber=event.subscriber)
+                logger.info('Subscriber %s invalid event removed' % (
+                    event.subscriber_imsi))
+                subscriber_event.delete()
 
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)
