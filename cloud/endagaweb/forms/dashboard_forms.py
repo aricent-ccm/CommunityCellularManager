@@ -55,9 +55,10 @@ class UpdateContactForm(forms.Form):
         )
 
 class NetworkBalanceLimit(forms.Form):
-      limit =forms.CharField(required=False, label="Balance Limit")
-      transaction=forms.CharField(required=False, label="Max Unsuccessful Transaction")
+      """Crispy form to set Network balance limit and transaction."""
 
+      limit = forms.CharField(required=False, label="Balance Limit")
+      transaction = forms.CharField(required=False, label="Max Unsuccessful Transaction")
 
       def __init__(self, *args, **kwargs):
           super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
@@ -65,14 +66,11 @@ class NetworkBalanceLimit(forms.Form):
           self.helper.form_id = 'id-NetworkBalanceLimitForm'
           self.helper.form_method = 'post'
           self.helper.form_action = '/dashboard/network/balance-limit'
-          #self.helper.form_class = 'network-settings-form'
           self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
           self.helper.add_input(Submit('submit', 'Save',))
           self.helper.layout = Layout(
                 'limit', 'transaction',
           )
-
-
 
 class SubscriberInfoForm(forms.Form):
     """Crispy form to set Subscriber name."""
@@ -173,6 +171,21 @@ class SubscriberSearchForm(forms.Form):
 
 class ChangePasswordForm(PasswordChangeForm):
     """Change password form visible on user profile page."""
+    """Updated to show password policy text. """
+    old_password = forms.CharField(required=True, label='Old Password',
+                                   widget=forms.PasswordInput(attrs={
+                                       'title': 'Enter Old Password'}),
+                         )
+    new_password1 = forms.CharField(required=True, label='New Password',
+                                    widget=forms.PasswordInput(attrs={
+                                        'title': 'Password must conatin atleast '
+                                                 '1 special character,combination of'
+                                                 ' alphanumeric character and '
+                                                 'minimum lenght of 8 charcter'}),)
+    new_password2 = forms.CharField(required=True, label='Confirm Password',
+                                    widget=forms.PasswordInput(attrs={
+                                        'title': 'Confirm Password'}),)
+
     def __init__(self, *args, **kwargs):
         super(ChangePasswordForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper()
@@ -415,3 +428,4 @@ class PasswordResetRequestForm(PasswordResetForm):
     class Meta:
         model = User
         fields = ("email")
+

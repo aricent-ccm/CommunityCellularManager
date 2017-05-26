@@ -38,6 +38,8 @@ from endagaweb.models import UserProfile
 from endagaweb.forms import dashboard_forms as dform
 from django.utils import timezone
 import urlparse
+import re
+
 logger = logging.getLogger('endagaweb')
 
 
@@ -110,51 +112,45 @@ def staff_login_view(request):
     return render_to_response("home/staff-login.html", context)
 
 
+
 def auth_and_login(request):
     """Handles POSTed credentials for login."""
     user = authenticate(username=request.POST['email'],
                         password=request.POST['password'])
     if user:
-        login(request, user)
-        userFind = User.objects.get(username=user)
-        today = timezone.now()
-        user_profile = UserProfile.objects.get(user=userFind)
-        network = user_profile.network
-        if (today - user_profile.last_pwd_update).days >= settings.ENDAGA['PASSWORD_EXPIRED_DAY']:
-            next_url = '/password/change'
-            if 'next' in request.POST and request.POST['next']:
-                next_url = request.POST['next']
-            return redirect(next_url)
-        elif (today - user_profile.last_pwd_update).days >= settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
-
-            text = str(user) + ' , your password will expire after ' + str(
+        if user.is_active:
+            login(request, user)
+            user = User.objects.get(username=user)
+            today = timezone.now()
+            user_profile = UserProfile.objects.get(user=user)
+            next_url = '/dashboard'
+            if (today - user_profile.last_pwd_update).days >= settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
+                text = str(user) + ' , your account will be blocked in next ' + str(
                 settings.ENDAGA['PASSWORD_EXPIRED_DAY']- (today - user_profile.last_pwd_update).days)
-            tags = 'password alert alert-danger'
-            next_url = '/dashboard'
-            if 'next' in request.POST and request.POST['next']:
-                next_url = request.POST['next']
-            messages.error(request, text)
-            return redirect(next_url)
+                if 'next' in request.POST and request.POST['next']:
+                    next_url = request.POST['next']
+                messages.error(request, text)
+                return redirect(next_url)
+            else:
+                if 'next' in request.POST and request.POST['next']:
+                    next_url = request.POST['next']
+                return redirect(next_url)
         else:
-            next_url = '/dashboard'
-            if 'next' in request.POST and request.POST['next']:
-                next_url = request.POST['next']
-            return redirect(next_url)
-
-        # Notification, if blocked user is trying to log in
-        if not user.is_active:
+            # Notification, if blocked user is trying to log in
             text = "This user is blocked. Please contact admin."
             messages.error(request, text)
-        return redirect(next_url)
+            return redirect('/login/')
     else:
         text = "Sorry, that email / password combination is not valid."
         messages.error(request, text)
         return redirect('/login/')
 
-
 @login_required(login_url='/login/')
 def change_password(request):
     """Handles password change request data."""
+    # restrict to set password must contain
+    PASSWORD_PATTERN ="((?=.*\\d)(?=.*[A-z])(?=.*[#?!@$%^&*-_+=]).{8,})";
+
     if request.method != 'POST':
         return HttpResponseBadRequest()
     # Make sure we have all parameters
@@ -172,6 +168,16 @@ def change_password(request):
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
+    if not re.match(PASSWORD_PATTERN, request.POST['new_password1']):
+        text = 'Error: password must be as per password policy.'
+        tags = 'password  alert alert-danger'
+        messages.info(request, text, extra_tags=tags)
+        return redirect(redirect_url)
+    if request.POST['old_password'] ==  request.POST['new_password1']:
+        text = 'Error: new password should not be old password.'
+        tags = 'password alert alert-danger'
+        messages.error(request, text, extra_tags=tags)
+        return  redirect(redirect_url)
     if request.POST['new_password1'] != request.POST['new_password2']:
         text = 'Error: new passwords do not match.'
         tags = 'password alert alert-danger'
@@ -197,14 +203,12 @@ def change_password(request):
 
 
 @login_required(login_url='/login/')
-def change_ExpiredPassword(request):
-    """Shows the operator profile settings.
-
-    Allows one to change password
+def change_expired_password(request):
+    """Render password change template to change
+        password
     """
     user_profile = UserProfile.objects.get(user=request.user)
     network = user_profile.network
-
     context = {
         'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
         'user_profile': user_profile,

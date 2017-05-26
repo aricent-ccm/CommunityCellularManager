@@ -41,7 +41,7 @@ from endagaweb.models import ConfigurationKey
 from endagaweb.models import Subscriber
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
-from endagaweb.models import TimeseriesStat
+from endagaweb.models import TimeseriesStat,UserProfile
 from endagaweb.ic_providers.nexmo import NexmoProvider
 
 
@@ -439,3 +439,18 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
         raise
     finally:
       obj.save()
+
+@app.task(bind=True)
+def block_user(self):
+    """ Block  User if User password is not updated
+    for last 90 days
+    """
+    six_month_ago = (django.utils.timezone.now() -
+                        datetime.timedelta(days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
+
+    user_profiles = UserProfile.objects.filter(last_pwd_update__lte=six_month_ago)
+    for userProfile in user_profiles:
+        userProfile.user.is_active = False
+        print '%s user is Blocked!' % userProfile.user.username
+        userProfile.user.save()
+

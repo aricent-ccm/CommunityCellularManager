@@ -443,10 +443,12 @@ class NetworkBalanceLimit(ProtectedView):
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
         # Set the context with various stats.
+        currency = network.subscriber_currency
         context = {
             'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
             'user_profile': user_profile,
             'network': network,
+            'currency': CURRENCIES[network.subscriber_currency],
             'network_balance_limit_form': dashboard_forms.NetworkBalanceLimit({
                 'limit': '',
                 'transitions': '',
