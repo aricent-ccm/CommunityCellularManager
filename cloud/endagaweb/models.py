@@ -20,11 +20,15 @@ import logging
 import time
 import uuid
 
+import django.utils.timezone
+import itsdangerous
+import pytz
+import stripe
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
-from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import connection
 from django.db import models
 from django.db import transaction
@@ -32,10 +36,6 @@ from django.db.models import F
 from django.db.models.signals import post_save
 from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
-import django.utils.timezone
-import itsdangerous
-import pytz
-import stripe
 
 from ccm.common import crdt, logger
 from ccm.common.currency import humanize_credits, CURRENCIES
@@ -1461,7 +1461,7 @@ post_save.connect(Network.create_billing_tiers, sender=Network)
 
 
 class NetworkDenomination(models.Model):
-    """Each BTS has their own denomination bracket for rechange and validity
+    """Network has its own denomination bracket for rechange and validity
 
     Subscriber status depends on recharge under denomination bracket
     """

@@ -547,6 +547,14 @@ class NetworkDenomination(ProtectedView):
                                     request, 'Denomination range already exists. Please enter valid start - end value.',
                                     extra_tags='alert alert-warning')
                                 return redirect(urlresolvers.reverse('network-denominations'))
+                            denom.network = user_profile.network
+                            denom.start_amount = start_amount
+                            denom.end_amount = end_amount
+                            denom.validity_days = validity_days
+                            denom.save()
+                            messages.success(
+                                request, 'Denomination is updated successfully.',
+                                extra_tags='alert alert-success')
                         except models.NetworkDenomination.DoesNotExist:
                             messages.error(
                                 request, 'Invalid denomination ID. Please try again.',
@@ -564,14 +572,14 @@ class NetworkDenomination(ProtectedView):
                             return redirect(urlresolvers.reverse('network-denominations'))
                         # Create new denomination for selected network
                         denom = models.NetworkDenomination(network=user_profile.network)
-                    denom.network = user_profile.network
-                    denom.start_amount = start_amount
-                    denom.end_amount = end_amount
-                    denom.validity_days = validity_days
-                    denom.save()
-                    messages.success(
-                        request, 'Denomination is created successfully.',
-                        extra_tags='alert alert-success')
+                        denom.network = user_profile.network
+                        denom.start_amount = start_amount
+                        denom.end_amount = end_amount
+                        denom.validity_days = validity_days
+                        denom.save()
+                        messages.success(
+                            request, 'Denomination is created successfully.',
+                            extra_tags='alert alert-success')
         except Exception as inst:
             messages.error(
                 request, 'Invalid request data. Please enter valid data and try again.',
