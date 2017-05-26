@@ -20,23 +20,22 @@ import logging
 import time
 import uuid
 
+import django.utils.timezone
+import itsdangerous
+import pytz
+import stripe
 from django.conf import settings
-from django.contrib.auth.models import Group, User, Permission
+from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
-from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import connection
 from django.db import models
 from django.db import transaction
 from django.db.models import F
 from django.db.models.signals import post_save
-from guardian.shortcuts import (assign_perm, get_objects_for_user,
-                                get_users_with_perms)
+from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
-import django.utils.timezone
-import itsdangerous
-import pytz
-import stripe
 
 from ccm.common import crdt, logger
 from ccm.common.currency import humanize_credits, CURRENCIES
@@ -45,8 +44,6 @@ from endagaweb.celery import app as celery_app
 from endagaweb.notifications import bts_up
 from endagaweb.util import currency as util_currency
 from endagaweb.util import dbutils as dbutils
-from django.contrib.auth.models import Permission
-from django.contrib.contenttypes.models import ContentType
 
 stripe.api_key = settings.STRIPE_API_KEY
 
@@ -607,15 +604,6 @@ class Subscriber(models.Model):
             bal.increment(amt)
         else:
             bal.decrement(abs(amt))
-        self.crdt_balance = bal.serialize()
-
-    def zero_balance(self):
-        try:
-            bal = crdt.PNCounter.from_json(self.crdt_balance)
-        except ValueError:
-            logging.error("Balance string: %s" % (self.crdt_balance,))
-            raise
-        bal.decrement(abs(0))
         self.crdt_balance = bal.serialize()
 
     def __unicode__(self):
@@ -1516,7 +1504,7 @@ post_save.connect(Network.create_billing_tiers, sender=Network)
 
 
 class NetworkDenomination(models.Model):
-    """Each BTS has their own denomination bracket for rechange and validity
+    """Network has its own denomination bracket for rechange and validity
 
     Subscriber status depends on recharge under denomination bracket
     """

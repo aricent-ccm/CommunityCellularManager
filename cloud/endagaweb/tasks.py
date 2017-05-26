@@ -445,7 +445,7 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
 
 @app.task(bind=True)
 def zero_out_subscribers_balance(self):
-    """Balance zero out of subscribers when validity date expires.
+    """Subscriber balance zero outs if validity expires.
 
     This runs this as a periodic task managed by celerybeat.
     """
@@ -458,7 +458,6 @@ def zero_out_subscribers_balance(self):
             subscriber.state = 'first_expire'
             subscriber.crdt_balance = crdt.PNCounter("default").serialize()
             subscriber.save()
-            #subscriber.zero_balance()
     except Exception as e:
         # log the error, but ignore it.
         print ("Exception occured : %s" % (e))
