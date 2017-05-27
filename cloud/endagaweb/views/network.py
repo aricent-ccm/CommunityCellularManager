@@ -497,7 +497,7 @@ class NetworkBalanceLimit(ProtectedView):
                 amount = parse_credits(request.POST['limit'],
                                        CURRENCIES[currency]).amount_raw
                 network.max_amount_limit=amount
-                network.max_failuer_Transaction=request.POST.get('transaction')
+                network.max_failure_transactions=request.POST.get('transaction')
                 network.save()
             except ValueError:
                 messages.error(request, error_text,extra_tags="alert alert-danger")

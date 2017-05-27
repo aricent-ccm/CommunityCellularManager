@@ -241,10 +241,12 @@ class SubVacuumForm(forms.Form):
         label='Automatically delete inactive subscribers',
         help_text=inactive_help_text,
         choices=enabled_choices, widget=forms.RadioSelect())
-    inactive_days = forms.CharField(
-        required=False, label='Outbound inactivity threshold (days)')
-    grace_days = forms.CharField(
-        required=False, label='Grace Period (days)')
+    inactive_days = forms.IntegerField(
+        required=False, label='Outbound inactivity threshold (days)',
+        min_value=0, max_value=10000)
+    grace_days = forms.IntegerField(
+        required=False, label='Grace Period (days)', min_value=0,
+        max_value=1000)
 
     def __init__(self, *args, **kwargs):
         super(SubVacuumForm, self).__init__(*args, **kwargs)
