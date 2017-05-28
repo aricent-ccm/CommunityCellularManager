@@ -1017,9 +1017,9 @@ class Network(models.Model):
     # Network environments let you specify things like "prod", "test", "dev",
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
-    #Added for Network Balance Limit
-    max_amount_limit = models.BigIntegerField(default=0)
-    max_failuer_Transaction = models.IntegerField(default=10)
+    # Added for Network Balance Limit
+    max_account_limit = models.BigIntegerField(default=10000)
+    max_failure_Transaction = models.IntegerField(default=3)
 
     class Meta:
         default_permissions = ()

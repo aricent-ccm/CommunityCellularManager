@@ -112,7 +112,6 @@ def staff_login_view(request):
     return render_to_response("home/staff-login.html", context)
 
 
-
 def auth_and_login(request):
     """Handles POSTed credentials for login."""
     user = authenticate(username=request.POST['email'],
@@ -124,16 +123,15 @@ def auth_and_login(request):
             today = timezone.now()
             user_profile = UserProfile.objects.get(user=user)
             next_url = '/dashboard'
-            if (today - user_profile.last_pwd_update).days >= settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
+            if 'next' in request.POST and request.POST['next']:
+                next_url = request.POST['next']
+            if (today - user_profile.last_pwd_update).days >= \
+                    settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
                 text = str(user) + ' , your account will be blocked in next ' + str(
                 settings.ENDAGA['PASSWORD_EXPIRED_DAY']- (today - user_profile.last_pwd_update).days)
-                if 'next' in request.POST and request.POST['next']:
-                    next_url = request.POST['next']
                 messages.error(request, text)
                 return redirect(next_url)
             else:
-                if 'next' in request.POST and request.POST['next']:
-                    next_url = request.POST['next']
                 return redirect(next_url)
         else:
             # Notification, if blocked user is trying to log in
@@ -148,33 +146,29 @@ def auth_and_login(request):
 @login_required(login_url='/login/')
 def change_password(request):
     """Handles password change request data."""
-    # restrict to set password must contain
-    PASSWORD_PATTERN ="((?=.*\\d)(?=.*[A-z])(?=.*[#?!@$%^&*-_+=]).{8,})";
-
     if request.method != 'POST':
         return HttpResponseBadRequest()
     # Make sure we have all parameters
     required_params = ('old_password', 'new_password1', 'new_password2')
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
-    # Validate
+    # Validate url for redirect
     if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
         redirect_url = '/password/change'
     else:
         redirect_url = '/dashboard/profile'
-
     if not request.user.check_password(request.POST['old_password']):
         text = 'Error: old password is incorrect.'
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
-    if not re.match(PASSWORD_PATTERN, request.POST['new_password1']):
+    if not validate_password_strength(request.POST['new_password1']):
         text = 'Error: password must be as per password policy.'
         tags = 'password  alert alert-danger'
         messages.info(request, text, extra_tags=tags)
         return redirect(redirect_url)
     if request.POST['old_password'] ==  request.POST['new_password1']:
-        text = 'Error: new password should not be old password.'
+        text = 'Error: new password must not be old password.'
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return  redirect(redirect_url)
@@ -201,7 +195,6 @@ def change_password(request):
         redirect_url = '/dashboard'
     return redirect(redirect_url)
 
-
 @login_required(login_url='/login/')
 def change_expired_password(request):
     """Render password change template to change
@@ -217,7 +210,7 @@ def change_expired_password(request):
         'change_pass_form': dform.ChangePasswordForm(request.user),
 
     }
-    template = get_template("dashboard/passwordChange.html")
+    template = get_template("dashboard/password_change.html")
     html = template.render(context, request)
     return HttpResponse(html)
 
@@ -377,3 +370,13 @@ def role_default_permissions(request):
 
         return JsonResponse({'permissions': list(role_permission)})
     return HttpResponseBadRequest()
+
+def validate_password_strength(value):
+    """Checks that a submitted value should match regex and return
+        boolean value
+    """
+
+    value = value.lower()
+    regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
+    pattern = re.compile(regex)
+    return bool(pattern.match(value))

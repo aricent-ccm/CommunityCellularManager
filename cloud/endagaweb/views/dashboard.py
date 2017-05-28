@@ -586,7 +586,7 @@ class SubscriberAdjustCredit(ProtectedView):
             if abs(amount) > 2147483647:
                 error_text = 'Error: credit value must be between -10M and 10M.'
                 raise ValueError(error_text)
-            if sub.balance + amount > network.max_amount_limit:
+            if sub.balance + amount > network.max_account_limit:
                 error_text = 'Dont have enough network credit.Crossed Network limit credit. '
                 raise ValueError(error_text)
         except ValueError:

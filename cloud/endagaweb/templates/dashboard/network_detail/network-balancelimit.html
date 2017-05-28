@@ -47,8 +47,8 @@ of patent rights can be found in the PATENTS file in the same directory.
     <div class='col-sm-12'>
       <!--<h4>Add Credit</h4>-->
         {% crispy network_balance_limit_form %}
-       <p class='col-xs-12'>Network current balance limit: {% currency network.max_amount_limit %}</p>
-       <p class='col-xs-12'>Unsuccesful transcation current limit: {{ network.max_failuer_Transaction }}</p>
+       <p class='col-xs-12'>Network current balance limit: {% currency network.max_account_limit %}</p>
+       <p class='col-xs-12'>Unsuccesful transcation current limit: {{ network.max_failure_Transaction }}</p>
       </div>
       <div class='col-sm-12'>
         {% for message in messages %}

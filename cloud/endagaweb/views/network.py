@@ -14,7 +14,6 @@ import time
 from django import http
 from django import template
 from django.contrib import messages
-from django.core.exceptions import ValidationError
 from django.core import urlresolvers
 from django.db import transaction
 from django.shortcuts import redirect
@@ -26,6 +25,7 @@ from endagaweb import models
 from endagaweb.forms import dashboard_forms
 from endagaweb.views.dashboard import ProtectedView
 from endagaweb.views import django_tables
+
 
 
 NUMBER_COUNTRIES = {
@@ -435,6 +435,27 @@ class NetworkEdit(ProtectedView):
         return redirect(urlresolvers.reverse('network-edit'))
 
 
+class NetworkSelectView(ProtectedView):
+    """This is a view that allows users to switch their current
+    network. They must have view_network permission on the instance
+    for this to work.
+    """
+
+    def get(self, request, network_id):
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        try:
+            network = models.Network.objects.get(pk=network_id)
+        except models.Network.DoesNotExist:
+            return http.HttpResponseBadRequest()
+
+        if not request.user.has_perm('view_network', network):
+            return http.HttpResponse('User not permitted to view this network', status=401)
+
+        user_profile.network = network
+        user_profile.save()
+        return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
+
+
 class NetworkBalanceLimit(ProtectedView):
     """Edit basic network info (to add credit to Network)."""
 
@@ -471,52 +492,45 @@ class NetworkBalanceLimit(ProtectedView):
         if 'transaction' not in request.POST:
             return http.HttpResponseBadRequest()
 
-        if request.POST.get('transaction') !="":
-            transaction_limit=request.POST.get('transaction')
-        else:
-            error_text = 'Require Max Unsuccessful Transaction  value'
-
-        if request.POST.get('limit') !="":
-            limit=request.POST.get('limit')
-
-        else:
-            error_text = 'Require Balance Limit  value'
-
+        if request.POST.get('transaction') =="" and request.POST.get('limit') =="":
+            error_text = 'Error : please provide value.'
+            messages.error(request, error_text, extra_tags="alert alert-danger")
+            return redirect(urlresolvers.reverse('network_balance_limit'))
         with transaction.atomic():
             try:
                 currency = network.subscriber_currency
-                amount = parse_credits(request.POST['limit'],
-                                       CURRENCIES[currency]).amount_raw
-                network.max_amount_limit=amount
-                network.max_failuer_Transaction=request.POST.get('transaction')
+                if request.POST.get('limit'):
+                    limit = self.\
+                        validate_network_balancelimit(int(request.POST.get('limit')))
+                    amount = parse_credits(limit,CURRENCIES[currency]).amount_raw
+                    network.max_account_limit = amount
+                if request.POST.get('transaction'):
+                    network.max_failure_Transaction = self.\
+                        validate_network_transaction_failure(int(request.POST.get('transaction')))
                 network.save()
-            except ValueError:
-                messages.error(request, error_text,extra_tags="alert alert-danger")
+            except ValueError as e:
+                if e.message.startswith('invalid literal'):
+                    e.message = 'Error : value must be Integer.'
+                messages.error(request, e.message,extra_tags="alert alert-danger")
                 return redirect(urlresolvers.reverse('network_balance_limit'))
-        messages.success(request, "Network Balance Limit and Transaction updated",
+        messages.success(request, 'Success :network balance limit and transaction updated.',
                          extra_tags="alert alert-success")
         return redirect(urlresolvers.reverse('network_balance_limit'))
 
+    def validate_network_balancelimit(self, limit_value):
+        if limit_value <= 0:
+            error_text = 'Error : balance limit value must be positive and greater than zero.'
+            raise ValueError(error_text)
+        if limit_value > 2147483647:
+            error_text = 'Error : balance limit  value is too large.'
+            raise ValueError(error_text)
+        return limit_value
 
-
-
-
-class NetworkSelectView(ProtectedView):
-    """This is a view that allows users to switch their current
-    network. They must have view_network permission on the instance
-    for this to work.
-    """
-
-    def get(self, request, network_id):
-        user_profile = models.UserProfile.objects.get(user=request.user)
-        try:
-            network = models.Network.objects.get(pk=network_id)
-        except models.Network.DoesNotExist:
-            return http.HttpResponseBadRequest()
-
-        if not request.user.has_perm('view_network', network):
-            return http.HttpResponse('User not permitted to view this network', status=401)
-
-        user_profile.network = network
-        user_profile.save()
-        return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
+    def validate_network_transaction_failure(self, failure_transaction_value):
+        if failure_transaction_value < 0:
+            error_text = 'Error : max unsuccessful transaction value must be positive'
+            raise ValueError(error_text)
+        if failure_transaction_value > 2147483647:
+            error_text = 'Error: max unsuccessful transaction value is too large. '
+            raise ValueError(error_text)
+        return failure_transaction_value
