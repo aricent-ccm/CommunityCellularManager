@@ -948,7 +948,7 @@ class UsageEvent(models.Model):
                 subscriber_event.negative_transactions = negative_transactions_ids
                 subscriber_event.save()
 
-                max_transactions = event.subscriber.network.max_failure_transactions
+                max_transactions = event.subscriber.network.max_failure_transaction
                 if subscriber_event.count == max_transactions:
                     subscriber.is_blocked = True
                     subscriber.block_reason = 'Repeated %s within 24 hours ' % (
