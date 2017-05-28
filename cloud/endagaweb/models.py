@@ -1019,7 +1019,7 @@ class Network(models.Model):
     environment = models.TextField(default="default")
     # Added for Network Balance Limit
     max_account_limit = models.BigIntegerField(default=10000)
-    max_failure_Transaction = models.IntegerField(default=3)
+    max_failure_transaction = models.IntegerField(default=3)
 
     class Meta:
         default_permissions = ()
