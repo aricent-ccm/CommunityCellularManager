@@ -1090,8 +1090,8 @@ class Network(models.Model):
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
     # Added for Network Balance Limit
-    max_amount_limit = models.BigIntegerField(default=0)
-    max_failure_transactions = models.IntegerField(default=10)
+    max_account_limit = models.BigIntegerField(default=10000)
+    max_failure_transaction = models.IntegerField(default=3)
 
     class Meta:
         default_permissions = ()
