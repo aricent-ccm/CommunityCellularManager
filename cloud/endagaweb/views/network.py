@@ -702,7 +702,7 @@ class NetworkBalanceLimit(ProtectedView):
                 if request.POST.get('limit'):
                     limit = self. \
                         validate_network_balancelimit(
-                        int(request.POST.get('limit')))
+                        float(request.POST.get('limit')))
                     amount = parse_credits(limit,
                                            CURRENCIES[currency]).amount_raw
                     network.max_account_limit = amount
@@ -712,31 +712,19 @@ class NetworkBalanceLimit(ProtectedView):
                         int(request.POST.get('transaction')))
                 network.save()
             except ValueError as e:
-                if e.message.startswith('invalid literal'):
-                    e.message = 'Error : value must be Integer.'
                 messages.error(request, e.message,
                                extra_tags="alert alert-danger")
                 return redirect(urlresolvers.reverse('network_balance_limit'))
         messages.success(request,
-                         'Success :network balance limit and transaction updated.',
+                         'Network balance limit and transaction updated.',
                          extra_tags="alert alert-success")
         return redirect(urlresolvers.reverse('network_balance_limit'))
 
 
     def validate_network_balancelimit(self, limit_value):
-        if limit_value <= 0:
-            error_text = 'Error : balance limit value must be positive and greater than zero.'
-            raise ValueError(error_text)
-        if limit_value > 2147483647:
-            error_text = 'Error : balance limit  value is too large.'
+        if limit_value == 0:
+            error_text = 'Error : balance limit value must greater than zero.'
             raise ValueError(error_text)
         return limit_value
 
-    def validate_network_transaction_failure(self, failure_transaction_value):
-        if failure_transaction_value < 0:
-            error_text = 'Error : max unsuccessful transaction value must be positive'
-            raise ValueError(error_text)
-        if failure_transaction_value > 2147483647:
-            error_text = 'Error: max unsuccessful transaction value is too large. '
-            raise ValueError(error_text)
-        return failure_transaction_value
+

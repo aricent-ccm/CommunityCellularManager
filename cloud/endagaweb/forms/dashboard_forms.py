@@ -161,8 +161,8 @@ class ChangePasswordForm(PasswordChangeForm):
                          )
     new_password1 = forms.CharField(required=True, label='New Password',
                                     widget=forms.PasswordInput(attrs={
-                                        'title': 'Password must contain at least 8 charcters,contain '
-                                                 'alphanumeric and one special charcter.'}),)
+                                        'title': 'Password must contain at least 8 characters,contains '
+                                                 'alphanumeric and one special character.'}),)
     new_password2 = forms.CharField(required=True, label='Confirm Password',
                                     widget=forms.PasswordInput(attrs={
                                         'title': 'Confirm Password'}),)
@@ -421,8 +421,8 @@ class PasswordResetRequestForm(PasswordResetForm):
 class NetworkBalanceLimit(forms.Form):
       """Crispy form to set Network balance limit and transaction."""
 
-      limit = forms.CharField(required=False, label="Balance Limit")
-      transaction = forms.CharField(required=False, label="Max Unsuccessful Transaction")
+      limit = forms.DecimalField(required=False, label="Maximum Balance Limit", decimal_places=2, min_value=0, max_value=2147483647)
+      transaction = forms.IntegerField(required=False, label="Maximum Permissible Unsuccessful Transactions", min_value=0, max_value=100)
 
       def __init__(self, *args, **kwargs):
           super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
