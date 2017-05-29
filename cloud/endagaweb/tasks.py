@@ -259,6 +259,7 @@ def vacuum_inactive_subscribers(self):
             # BTS.
             time.sleep(2)
 
+
 @app.task(bind=True)
 def facebook_ods_checkin(self):
     """Pushes model information to ODS
@@ -313,7 +314,6 @@ def facebook_ods_checkin(self):
                 datapoints.append({'entity': ent_name,
                                    'key': 'camped_subscribers',
                                    'value': camped_subscribers.count()})
-
 
     requests.post(ods_url, data={'datapoints': json.dumps(datapoints)})
 
@@ -396,16 +396,18 @@ def downtime_notify(self):
                 type='bts down')
             down_event.save()
 
+
 @app.task(bind=True)
 def async_email(self, subject, body, from_, to_list):
     send_mail(subject, body, from_, to_list)
+
 
 @app.task(bind=True)
 def sms_notification(self, body, to):
     try:
         nexmo_number_out = settings.ENDAGA['NEXMO_NOTIFICATION_NUMBER']
     except KeyError:
-        return # Do nothing if not configured
+        return  # Do nothing if not configured
 
     nexmo_provider = NexmoProvider(settings.ENDAGA['NEXMO_ACCT_SID'],
                        settings.ENDAGA['NEXMO_AUTH_TOKEN'],
@@ -415,8 +417,9 @@ def sms_notification(self, body, to):
 
     nexmo_provider.send(to, nexmo_number_out, body)
 
+
 @app.task(bind=True)
-def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
+def req_bts_log(self, obj, retry_delay=60 * 10, max_retries=432):
     """Sends a request to a BTS config endpoint to collect a particular
     log file.
     """
@@ -444,6 +447,7 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
     finally:
       obj.save()
 
+
 @app.task(bind=True)
 def unblock_blocked_subscribers(self):
     """Unblock subscribers who are blocked for past 24 hrs.
@@ -461,6 +465,7 @@ def unblock_blocked_subscribers(self):
         [subscriber.imsi for subscriber in subscribers], )
     subscribers.update(is_blocked=False, block_time=None,
                        block_reason='No reason to block yet!')
+
 
 @app.task(bind=True)
 def subscriber_validity_state(self):
@@ -491,7 +496,7 @@ def subscriber_validity_state(self):
                 print "Updating subscriber(%s) state to 'Inactive'" % (
                     subscriber.imsi,)
             elif today > recycle:
-                # Also, let deactivation of subscriber be handled by
+                # Let deactivation of subscriber be handled by
                 # vacuum_inactive_subscribers
                 if subscriber.prevent_automatic_deactivation:
                     continue
@@ -505,6 +510,7 @@ def subscriber_validity_state(self):
                     subscriber.save()
                     print "Updating subscriber(%s) state to 'First Expire'" % (
                         subscriber.imsi,)
+
 
 @app.task(bind=True)
 def validity_expiry_sms(self, days=7):
@@ -527,42 +533,58 @@ def validity_expiry_sms(self, days=7):
             subscriber_validity = number.valid_through
             # In case where number has no validity
             if subscriber_validity is None:
-                # print '%s has no validity' % (subscriber.imsi,)
+                print '%s has no validity' % (subscriber.imsi,)
                 continue
         except IndexError:
-            # print 'No number attached to subscriber %s' % (subscriber.imsi,)
+            print 'No number attached to subscriber %s' % (subscriber.imsi,)
             continue
+
         subscriber_validity = subscriber_validity.date()
         inactive_period = subscriber.network.sub_vacuum_inactive_days
         grace_period = subscriber.network.sub_vacuum_grace_days
+
         prior_first_expire = subscriber_validity + datetime.timedelta(
             days=inactive_period) - datetime.timedelta(days=days)
+
         prior_recycle = prior_first_expire + datetime.timedelta(
             days=grace_period)
 
         # Prior to expiry state (one on last day and before defined days)
-        if (subscriber_validity - datetime.timedelta(days=days)) == today or \
-                        today == (subscriber_validity - datetime.timedelta(
-                    days=1)):
-            body = 'Your validity is about to get expired, Please recharge ' \
-                   'to enjoy the service! '
+        if subscriber_validity > today and (
+                            (subscriber_validity - datetime.timedelta(
+                                days=days)
+                             ) == today or today == (
+                                subscriber_validity - datetime.timedelta(
+                                days=1)) or today == subscriber_validity):
+            body = 'Your validity is about to get expired on %s , Please ' \
+                   'recharge to continue the service. Please ignore if ' \
+                   'already done! ' % (subscriber_validity,)
             sms_notification(body=body, to=number)
-
         # Prior 1st_expired state
         elif subscriber_validity < today:
-            # print subscriber_validity
-            # print today
-            if prior_first_expire == today:
-                body = 'Your validity is expired, Please recharge ' \
-                       'immediately to activate your services again! '
+            if prior_first_expire == today or today == (
+                        prior_first_expire + datetime.timedelta(
+                        days=days + 1)):
+                body = 'Your validity has expired on %s, Please recharge ' \
+                       'immediately to activate your services again! ' % (
+                           subscriber_validity,)
                 sms_notification(body=body, to=number)
             # Prior to recycle state
-            elif prior_recycle == today:
-                body = 'Warning: Your validity is expired, Please recharge ' \
-                       'immediately to avoid deactivation of your connection! '
+            elif prior_recycle == today or today == (
+                        prior_recycle + datetime.timedelta(days=days + 1)):
+                body = 'Warning: Your validity has expired on %s , Please ' \
+                       'recharge immediately to avoid deactivation of your ' \
+                       'connection! ' % (subscriber_validity,)
                 sms_notification(body=body, to=number)
+        # SMS on same day of expiry
+        elif subscriber_validity == today:
+            body = 'Your validity expiring today %s, Please recharge ' \
+                   'immediately to continue your services again!, ' \
+                   'Ignore if already done! ' % (subscriber_validity,)
+            sms_notification(body=body, to=number)
         else:
             return  # Do nothing
+
 
 @app.task(bind=True)
 def zero_out_subscribers_balance(self):
@@ -574,10 +596,10 @@ def zero_out_subscribers_balance(self):
     subscribers = Subscriber.objects.filter(
         number__valid_through__lte=today)
     if not subscribers:
-        return # Do nothing
+        return  # Do nothing
     credit_balance = crdt.PNCounter("default").serialize()
     print "Validity expired for Susbcribers %s setting balance to 0" % (
-        [subscriber.imsi for subscriber in subscribers], )
+        [subscriber.imsi for subscriber in subscribers],)
     subscribers.update(state='first_expire', crdt_balance=credit_balance)
 
 
