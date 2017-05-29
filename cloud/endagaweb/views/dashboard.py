@@ -10,6 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import csv
 import datetime
+import json
 import logging
 import operator
 import time
@@ -49,7 +50,6 @@ from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
                               Network, NetworkDenomination, PendingCreditUpdate, Number)
 from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
-import json
 
 
 class ProtectedView(View):
@@ -582,14 +582,14 @@ class SubscriberAdjustCredit(ProtectedView):
         # Validate the input.
         if 'amount' not in request.POST:
             return HttpResponseBadRequest()
-        error_text = 'Error: credit value must be between -10M and 10M.'
+        error_text = 'Credit value must be between -10M and 10M.'
 
         try:
             currency = network.subscriber_currency
             amount = parse_credits(request.POST['amount'],
                                    CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
-                error_text = 'Error: Credit value must be between -10M and 10M.'
+                error_text = 'Credit value must be between -10M and 10M.'
                 raise ValueError(error_text)
             if sub.balance + amount > network.max_account_limit:
                 error_text = 'Error : Crossed Credit Limit.'
@@ -613,23 +613,24 @@ class SubscriberAdjustCredit(ProtectedView):
                         elif expiry_date >= num.valid_through:
                             num.valid_through = expiry_date
                             num.save()
+                        # Validation suceeded, create a PCU and start the update credit task.
+                        msgid = str(uuid.uuid4())
+                        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
+                        credit_update.save()
+                        tasks.update_credit.delay(sub.imsi, msgid)
+                        messages.success(request, "Amount credited to subscriber successfully.",
+                                         extra_tags="alert alert-success")
+                        return adjust_credit_redirect
                     except Number.DoesNotExist:
-                        error_text = 'Error: Subscriber has no number assigned.'
+                        error_text = 'Subscriber has no number assigned.'
                         raise ValueError(error_text)
             except NetworkDenomination.DoesNotExist:
-                error_text = 'Error: Credit value must be in denomination range.'
+                error_text = 'Credit value must be in denomination range.'
+                raise ValueError(error_text)
         except ValueError:
             messages.error(request, error_text,
                          extra_tags="alert alert-danger")
             return adjust_credit_redirect
-        # Validation suceeded, create a PCU and start the update credit task.
-        msgid = str(uuid.uuid4())
-        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
-        credit_update.save()
-        tasks.update_credit.delay(sub.imsi, msgid)
-        messages.success(request, "Amount credited to subscriber successfully.",
-                         extra_tags="alert alert-success")
-        return adjust_credit_redirect
 
     def delete(self, request, imsi=None):
         """Handle the deletion of Pending Credit Updates."""

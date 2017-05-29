@@ -167,7 +167,7 @@ def change_password(request):
         tags = 'password  alert alert-danger'
         messages.info(request, text, extra_tags=tags)
         return redirect(redirect_url)
-    if request.POST['old_password'] ==  request.POST['new_password1']:
+    if request.POST['old_password'] == request.POST['new_password1']:
         text = 'Error: new password must not be old password.'
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
@@ -191,7 +191,8 @@ def change_password(request):
     text = 'Password changed successfully.'
     tags = 'password alert alert-success'
     messages.success(request, text, extra_tags=tags)
-    if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
+    if urlparse.urlparse(request.META['HTTP_REFERER']
+                         ).path != '/dashboard/profile':
         redirect_url = '/dashboard'
     return redirect(redirect_url)
 

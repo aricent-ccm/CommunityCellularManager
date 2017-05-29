@@ -224,10 +224,18 @@ class SubVacuumForm(forms.Form):
         choices=enabled_choices, widget=forms.RadioSelect())
     inactive_days = forms.IntegerField(
         required=False, label='Outbound inactivity threshold (days)',
-        min_value=0, max_value=10000)
+        min_value=0, max_value=10000, widget=
+        forms.TextInput(attrs={'class': 'form-control', 'pattern':'[0-9]+',
+                               'oninvalid':"setCustomValidity('Enter numbers only!')",
+                               'onchange':"try{"
+                                          "setCustomValidity('')}catch(e){}"}))
     grace_days = forms.IntegerField(
         required=False, label='Grace Period (days)', min_value=0,
-        max_value=1000)
+        max_value=1000, widget=
+        forms.TextInput(attrs={'class': 'form-control', 'pattern':'[0-9]+',
+                               'oninvalid':"setCustomValidity('Enter numbers only!')",
+                               'onchange':"try{"
+                                          "setCustomValidity('')}catch(e){}"}))
 
     def __init__(self, *args, **kwargs):
         super(SubVacuumForm, self).__init__(*args, **kwargs)
@@ -364,7 +372,7 @@ class SelectTowerForm(forms.Form):
         choices = []
         # We create a convoluted tower queryset so that towers that have never
         # synced (last_active = None) sort after active and inactive towers.
-        the_past = datetime.datetime.now() - datetime.timedelta(days=10*365)
+        the_past = datetime.datetime.now() - datetime.timedelta(days=10 * 365)
         all_towers = models.BTS.objects.all().annotate(
             new_last_active=Coalesce('last_active', Value(the_past))).order_by(
                 '-new_last_active')
@@ -435,4 +443,3 @@ class NetworkBalanceLimit(forms.Form):
           self.helper.layout = Layout(
                 'limit', 'transaction',
           )
-

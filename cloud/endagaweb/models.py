@@ -1050,8 +1050,8 @@ class Network(models.Model):
     # Whether or not to automatically delete inactive subscribers, and
     # associated parameters.
     sub_vacuum_enabled = models.BooleanField(default=False)
-    sub_vacuum_inactive_days = models.IntegerField(default=180)
-    sub_vacuum_grace_days = models.IntegerField(default=30)
+    sub_vacuum_inactive_days = models.PositiveIntegerField(default=180)
+    sub_vacuum_grace_days = models.PositiveIntegerField(default=30)
 
     # csv of endpoints to notify for downtime
     notify_emails = models.TextField(blank=True, default='')
