@@ -160,7 +160,6 @@ of patent rights can be found in the PATENTS file in the same directory.
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
-
                 <h4 class='modal-title'>
                     Please enter your password for authorization
                  </h4>
@@ -168,11 +167,8 @@ of patent rights can be found in the PATENTS file in the same directory.
             <div class='modal-body'>
                 <form id='password-authorization'>
                     <div class='form-group'>
-
                         <div class='controls'>
-                              <input class='textinput textInput form-control' id='pwd-input'
-                     name='pwd'
-                     type='password'>
+                              <input class='textinput textInput form-control' id='pwd-input' name='pwd' type='password'>
                         </div>
                     </div><!-- /.form-group -->
 
@@ -180,7 +176,7 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div> <!-- /.modal-body -->
             <div class='modal-footer' id="modal-footerId">
                 <button type='button' class='btn btn-default' data-dismiss='modal'>Cancel</button>
-                <button class='btn btn-primary' type='button'    id='pwd-dialog-submit' >
+                <button class='btn btn-primary' type='button' id='pwd-dialog-submit'>
                     OK
                 </button>
                 <div id='messages-container'></div>
@@ -267,8 +263,7 @@ of patent rights can be found in the PATENTS file in the same directory.
           $('#messages-container').html(html);
           setTimeout(function() {
             $('#messages-container').fadeTo(500, 0);
-            $('#pwd-dialog-modal').modal('hide');
-
+            $('#pwd-input').val("");
           }, 2000);
         }
       });

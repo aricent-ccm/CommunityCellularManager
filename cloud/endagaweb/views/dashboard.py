@@ -10,6 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import csv
 import datetime
+import json
 import logging
 import operator
 import time
@@ -49,7 +50,6 @@ from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
                               Network, NetworkDenomination, PendingCreditUpdate, Number)
 from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
-import json
 
 
 class ProtectedView(View):
@@ -591,8 +591,8 @@ class SubscriberAdjustCredit(ProtectedView):
             if abs(amount) > 2147483647:
                 error_text = 'Credit value must be between -10M and 10M.'
                 raise ValueError(error_text)
-            if sub.balance + amount > network.max_amount_limit:
-                error_text = 'Don\'t have enough network credit. Crossed Network limit credit. '
+            if sub.balance + amount > network.max_account_limit:
+                error_text = 'Error : Dont have enough network credit.Crossed Network limit credit '
                 raise ValueError(error_text)
             try:
                 # Check for existing denomination range exist.

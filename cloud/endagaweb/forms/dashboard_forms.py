@@ -54,23 +54,6 @@ class UpdateContactForm(forms.Form):
             'email', 'first_name', 'last_name', 'timezone',
         )
 
-class NetworkBalanceLimit(forms.Form):
-      """Crispy form to set Network balance limit and transaction."""
-
-      limit = forms.CharField(required=False, label="Balance Limit")
-      transaction = forms.CharField(required=False, label="Max Unsuccessful Transaction")
-
-      def __init__(self, *args, **kwargs):
-          super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
-          self.helper = FormHelper()
-          self.helper.form_id = 'id-NetworkBalanceLimitForm'
-          self.helper.form_method = 'post'
-          self.helper.form_action = '/dashboard/network/balance-limit'
-          self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
-          self.helper.add_input(Submit('submit', 'Save',))
-          self.helper.layout = Layout(
-                'limit', 'transaction',
-          )
 
 class SubscriberInfoForm(forms.Form):
     """Crispy form to set Subscriber name."""
@@ -178,10 +161,8 @@ class ChangePasswordForm(PasswordChangeForm):
                          )
     new_password1 = forms.CharField(required=True, label='New Password',
                                     widget=forms.PasswordInput(attrs={
-                                        'title': 'Password must conatin atleast '
-                                                 '1 special character,combination of'
-                                                 ' alphanumeric character and '
-                                                 'minimum lenght of 8 charcter'}),)
+                                        'title': 'Password must contain at least 8 charcters,contain '
+                                                 'alphanumeric and one special charcter.'}),)
     new_password2 = forms.CharField(required=True, label='Confirm Password',
                                     widget=forms.PasswordInput(attrs={
                                         'title': 'Confirm Password'}),)
@@ -241,10 +222,12 @@ class SubVacuumForm(forms.Form):
         label='Automatically delete inactive subscribers',
         help_text=inactive_help_text,
         choices=enabled_choices, widget=forms.RadioSelect())
-    inactive_days = forms.CharField(
-        required=False, label='Outbound inactivity threshold (days)')
-    grace_days = forms.CharField(
-        required=False, label='Grace Period (days)')
+    inactive_days = forms.IntegerField(
+        required=False, label='Outbound inactivity threshold (days)',
+        min_value=0, max_value=10000)
+    grace_days = forms.IntegerField(
+        required=False, label='Grace Period (days)', min_value=0,
+        max_value=1000)
 
     def __init__(self, *args, **kwargs):
         super(SubVacuumForm, self).__init__(*args, **kwargs)
@@ -433,4 +416,23 @@ class PasswordResetRequestForm(PasswordResetForm):
     class Meta:
         model = User
         fields = ("email")
+
+
+class NetworkBalanceLimit(forms.Form):
+      """Crispy form to set Network balance limit and transaction."""
+
+      limit = forms.CharField(required=False, label="Balance Limit")
+      transaction = forms.CharField(required=False, label="Max Unsuccessful Transaction")
+
+      def __init__(self, *args, **kwargs):
+          super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
+          self.helper = FormHelper()
+          self.helper.form_id = 'id-NetworkBalanceLimitForm'
+          self.helper.form_method = 'post'
+          self.helper.form_action = '/dashboard/network/balance-limit'
+          self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
+          self.helper.add_input(Submit('submit', 'Save',))
+          self.helper.layout = Layout(
+                'limit', 'transaction',
+          )
 

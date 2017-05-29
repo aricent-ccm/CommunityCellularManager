@@ -317,6 +317,7 @@ def facebook_ods_checkin(self):
 
     requests.post(ods_url, data={'datapoints': json.dumps(datapoints)})
 
+
 @app.task(bind=True)
 def downtime_notify(self):
     """Sends out notifcation to a user if a BTS has gone down.
@@ -451,13 +452,15 @@ def unblock_blocked_subscribers(self):
     """
     unblock_time = django.utils.timezone.now() - datetime.timedelta(days=1)
     subscribers = Subscriber.objects.filter(is_blocked=True,
-                                               block_time__lte=unblock_time)
+                                            block_time__lte=unblock_time)
     if not subscribers:
         return  # Do nothing
 
     # Todo(sagar): Remove Subscriber Entry from Subscriber's Invalid Event
-    subscribers.update(is_blocked=False, block_time=None)
-
+    print 'Unblocking subscribers %s blocked for past 24 hours' % (
+        [subscriber.imsi for subscriber in subscribers], )
+    subscribers.update(is_blocked=False, block_time=None,
+                       block_reason='No reason to block yet!')
 
 @app.task(bind=True)
 def subscriber_validity_state(self):
@@ -567,18 +570,16 @@ def zero_out_subscribers_balance(self):
 
     This runs this as a periodic task managed by celerybeat.
     """
-    try:
-        today = django.utils.timezone.now()
-        subscribers = Subscriber.objects.filter(number__valid_through__lte=today)
-        print "subscribers = ", subscribers
-        for subscriber in subscribers:
-            # Update subscriber status to first_expire and balance zero out
-            subscriber.state = 'first_expire'
-            subscriber.crdt_balance = crdt.PNCounter("default").serialize()
-            subscriber.save()
-    except Exception as e:
-        # log the error, but ignore it.
-        print ("Exception occured : %s" % (e))
+    today = django.utils.timezone.now()
+    subscribers = Subscriber.objects.filter(
+        number__valid_through__lte=today)
+    if not subscribers:
+        return # Do nothing
+    credit_balance = crdt.PNCounter("default").serialize()
+    print "Validity expired for Susbcribers %s setting balance to 0" % (
+        [subscriber.imsi for subscriber in subscribers], )
+    subscribers.update(state='first_expire', crdt_balance=credit_balance)
+
 
 @app.task(bind=True)
 def block_user(self):
@@ -586,10 +587,10 @@ def block_user(self):
     for last 90 days
     """
     six_month_ago = (django.utils.timezone.now() -
-                        datetime.timedelta(days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
-
+                        datetime.timedelta(
+                            days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
     user_profiles = UserProfile.objects.filter(last_pwd_update__lte=six_month_ago)
-    for userProfile in user_profiles:
-        userProfile.user.is_active = False
-        print '%s user is Blocked!' % userProfile.user.username
-        userProfile.user.save()
+    for user_profile in user_profiles:
+        user_profile.user.is_active = False
+        print '%s user is Blocked!' % user_profile.user.username
+        user_profile.user.save()
