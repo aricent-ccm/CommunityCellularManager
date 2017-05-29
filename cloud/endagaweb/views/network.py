@@ -734,9 +734,7 @@ class NetworkBalanceLimit(ProtectedView):
                                            CURRENCIES[currency]).amount_raw
                     network.max_account_limit = amount
                 if request.POST.get('transaction'):
-                    network.max_failure_transaction = self. \
-                        validate_network_transaction_failure(
-                        int(request.POST.get('transaction')))
+                    network.max_failure_transaction = request.POST.get('transaction')
                 network.save()
             except ValueError as e:
                 messages.error(request, e.message,
