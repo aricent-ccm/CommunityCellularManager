@@ -507,9 +507,6 @@ class NetworkBalanceLimit(ProtectedView):
         return redirect(urlresolvers.reverse('network_balance_limit'))
 
 
-
-
-
 class NetworkSelectView(ProtectedView):
     """This is a view that allows users to switch their current
     network. They must have view_network permission on the instance
@@ -554,8 +551,8 @@ class NetworkDenomination(ProtectedView):
             denom = models.NetworkDenomination.objects.get(id=dnm_id)
             denom_data = {
                 'id': denom.id,
-                'start_amount': humanize_credits(denom.start_amount, CURRENCIES[currency]).amount_str(),
-                'end_amount': humanize_credits(denom.end_amount, CURRENCIES[currency]).amount_str(),
+                'start_amount': humanize_credits(denom.start_amount, CURRENCIES[currency]).amount,
+                'end_amount': humanize_credits(denom.end_amount, CURRENCIES[currency]).amount,
                 'validity_days': denom.validity_days
             }
             response["data"] = denom_data
@@ -600,21 +597,23 @@ class NetworkDenomination(ProtectedView):
             end_amount_raw = request.POST.get('end_amount')
             end_amount = parse_credits(end_amount_raw, CURRENCIES[currency]).amount_raw
             validity_days = int(request.POST.get('validity_days')) or 0
+            if validity_days > 10000:
+                validity_days = 10000
             dnm_id = int(request.POST.get('dnm_id')) or 0
             if start_amount <= 0 or end_amount <= 0:
-                messages.warning(
-                    request, 'Start/End amount should be positive value.',
-                    extra_tags='alert alert-warning')
+                messages.error(
+                    request, 'Enter positive and non-zero value for start/end amount.',
+                    extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
             elif validity_days <= 0:
-                messages.warning(
+                messages.error(
                     request, 'Validity can not be 0 day.',
-                    extra_tags='alert alert-warning')
+                    extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
             elif end_amount <= start_amount:
-                messages.warning(
-                    request, 'Start amount should be greater than end amount.',
-                    extra_tags='alert alert-warning')
+                messages.error(
+                    request, 'End amount should be greater than start amount.',
+                    extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
 
             with transaction.atomic():
@@ -630,8 +629,8 @@ class NetworkDenomination(ProtectedView):
                                 network=user_profile.network).exclude(id=dnm_id).count()
                             if denom_exists:
                                 messages.error(
-                                    request, 'Denomination range already exists. Please enter valid start - end value.',
-                                    extra_tags='alert alert-warning')
+                                    request, 'Denomination range already exists.',
+                                    extra_tags='alert alert-danger')
                                 return redirect(urlresolvers.reverse('network-denominations'))
                             denom.network = user_profile.network
                             denom.start_amount = start_amount
@@ -655,7 +654,7 @@ class NetworkDenomination(ProtectedView):
                         if denom_exists:
                             messages.error(
                                 request, 'Denomination range already exists. Please enter valid start - end value.',
-                                extra_tags='alert alert-warning')
+                                extra_tags='alert alert-danger')
                             return redirect(urlresolvers.reverse('network-denominations'))
                         # Create new denomination for selected network
                         denom = models.NetworkDenomination(network=user_profile.network)
