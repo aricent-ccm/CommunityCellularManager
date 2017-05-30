@@ -38,8 +38,8 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             {% endfor %}
                 <form action="/dashboard/user/management/delete" method="GET" role="form">
-                    {% crispy search %}
-                    <div class="col-xs-12 col-md-8">
+                    <div class="col-xs-12 col-md-6">
+                        {% crispy search %}
                         <head>
                             <link rel="stylesheet" href="{% static 'django_tables2/themes/paleblue/css/screen.css' %}"/>
                         </head>
@@ -90,9 +90,6 @@ of patent rights can be found in the PATENTS file in the same directory.
         $("#username").html($("#user_"+user).html())
     }
     $('#delete-user-submit').click(function(){
-
-        console.log("ok here", $("#user").val());
-
         // Show a 'working' message.
       var message = 'Working..';
       var html = "<div class='alert alert-success'>" + message + "</div>";

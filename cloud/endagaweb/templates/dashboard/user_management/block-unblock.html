@@ -42,8 +42,8 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             {% endfor %}
             <form action="/dashboard/user/management/blocking" method="GET" role="form">
-                {% crispy search %}
-                <div class="col-xs-12 col-md-8">
+                <div class="col-xs-12 col-md-6">
+                    {% crispy search %}
                     <head>
                         <link rel="stylesheet" href="{% static 'django_tables2/themes/paleblue/css/screen.css' %}"/>
                     </head>
