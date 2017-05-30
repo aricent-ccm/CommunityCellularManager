@@ -459,8 +459,6 @@ def unblock_blocked_subscribers(self):
                                             block_time__lte=unblock_time)
     if not subscribers:
         return  # Do nothing
-
-    # Todo(sagar): Remove Subscriber Entry from Subscriber's Invalid Event
     print 'Unblocking subscribers %s blocked for past 24 hours' % (
         [subscriber.imsi for subscriber in subscribers], )
     subscribers.update(is_blocked=False, block_time=None,

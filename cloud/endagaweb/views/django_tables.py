@@ -146,6 +146,7 @@ class SubscriberTable(tables.Table):
     numbers = tables.Column(orderable=False, verbose_name='Number(s)')
     balance = tables.Column(verbose_name='Balance')
     last_active = tables.Column(verbose_name='Last Active')
+    role = tables.Column(verbose_name='Role')
 
     def render_name_and_imsi_link(self, record):
         return render_name_and_imsi_link(record)
