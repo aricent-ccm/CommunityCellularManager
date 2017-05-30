@@ -596,7 +596,7 @@ class SubscriberAdjustCredit(ProtectedView):
                 error_text = 'Credit value must be between -10M and 10M.'
                 raise ValueError(error_text)
             if sub.balance + amount > network.max_account_limit:
-                error_text = 'Error : Dont have enough network credit.Crossed Network limit credit '
+                error_text = 'Error : Crossed Credit Limit.'
                 raise ValueError(error_text)
             try:
                 # Check for existing denomination range exist.

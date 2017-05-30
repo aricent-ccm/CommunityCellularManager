@@ -246,19 +246,18 @@ of patent rights can be found in the PATENTS file in the same directory.
           // Clear out any old messages and show the div again.
           $('#messages-container').html();
           $('#messages-container').css('opacity', 1);
-          var message = 'Authorize.File downloading.';
+          var message = 'Password Authorization Successful.';
           var html = '<div class="alert alert-success">' + message + '</div>';
           $('#messages-container').html(html);
           setTimeout(function() {
              window.location="?page={{ events.number }}&csv=1"
              $('#pwd-dialog-modal').modal('hide');
              $('#messages-container').fadeTo(200, 0);
-             //$('.modal-backdrop').remove();
           }, 2000);
         } else {
           $('#messages-container').html();
           $('#messages-container').css('opacity', 1);
-          var message = 'Not Authorize.';
+          var message = 'Incorrect password.';
           var html = '<div class="alert alert-danger">' + message + '</div>';
           $('#messages-container').html(html);
           setTimeout(function() {

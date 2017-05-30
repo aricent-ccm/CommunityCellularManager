@@ -163,7 +163,7 @@ def change_password(request):
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
     if not validate_password_strength(request.POST['new_password1']):
-        text = 'Error: password must be as per password policy.'
+        text = 'Error: password must contain at least 8 characters,contains alphanumeric and one special character..'
         tags = 'password  alert alert-danger'
         messages.info(request, text, extra_tags=tags)
         return redirect(redirect_url)
