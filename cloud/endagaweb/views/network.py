@@ -22,7 +22,8 @@ from django.shortcuts import redirect
 import django_tables2 as tables
 from guardian.shortcuts import get_objects_for_user
 
-from ccm.common.currency import parse_credits, humanize_credits, CURRENCIES, DEFAULT_CURRENCY
+from ccm.common.currency import parse_credits, humanize_credits, \
+    CURRENCIES, DEFAULT_CURRENCY
 from endagaweb import models
 from endagaweb.forms import dashboard_forms
 from endagaweb.views.dashboard import ProtectedView
@@ -534,31 +535,35 @@ class NetworkDenomination(ProtectedView):
             denom = models.NetworkDenomination.objects.get(id=dnm_id)
             denom_data = {
                 'id': denom.id,
-                'start_amount': humanize_credits(denom.start_amount, CURRENCIES[currency]).amount,
-                'end_amount': humanize_credits(denom.end_amount, CURRENCIES[currency]).amount,
+                'start_amount': humanize_credits(denom.start_amount,
+                                                 CURRENCIES[currency]).amount,
+                'end_amount': humanize_credits(denom.end_amount,
+                                               CURRENCIES[currency]).amount,
                 'validity_days': denom.validity_days
             }
             response["data"] = denom_data
-            return http.HttpResponse(json.dumps(response), content_type="application/json")
+            return http.HttpResponse(json.dumps(response),
+                                     content_type="application/json")
 
-        # Configure the table of denominations. Do not show any pagination controls
-        # if the total number of donominations is small.
-        denominations_table = django_tables.DenominationTable(list(denom))
+        # Configure the table of denominations. Do not show any pagination
+        # controls if the total number of donominations is small.
+        denom_table = django_tables.DenominationTable(list(denom))
         towers_per_page = 8
         paginate = False
         if denom > towers_per_page:
             paginate = {'per_page': towers_per_page}
-        tables.RequestConfig(request, paginate=paginate).configure(denominations_table)
+        tables.RequestConfig(request, paginate=paginate).configure(denom_table)
 
         # Set the context with various stats.
         context = {
-            'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=models.Network),
             'currency': CURRENCIES[user_profile.network.subscriber_currency],
             'user_profile': user_profile,
             'network': network,
             'number_country': NUMBER_COUNTRIES[network.number_country],
             'denomination': denom_count,
-            'denominations_table': denominations_table,
+            'denominations_table': denom_table,
         }
         # Render template.
         info_template = template.loader.get_template(
@@ -569,23 +574,26 @@ class NetworkDenomination(ProtectedView):
     def post(self, request):
         """Operators can use this API to add denomination to a network.
 
-        These denomination bracket will be used to recharge subscriber and set balance validity
+        These denomination bracket will be used to recharge subscriber, 
+        set balance validity and status
         """
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
         try:
             currency = network.subscriber_currency
             start_amount_raw = request.POST.get('start_amount')
-            start_amount = parse_credits(start_amount_raw, CURRENCIES[currency]).amount_raw
+            start_amount = parse_credits(start_amount_raw,
+                                         CURRENCIES[currency]).amount_raw
             end_amount_raw = request.POST.get('end_amount')
-            end_amount = parse_credits(end_amount_raw, CURRENCIES[currency]).amount_raw
+            end_amount = parse_credits(end_amount_raw,
+                                       CURRENCIES[currency]).amount_raw
             validity_days = int(request.POST.get('validity_days')) or 0
             if validity_days > 10000:
                 validity_days = 10000
             dnm_id = int(request.POST.get('dnm_id')) or 0
             if start_amount <= 0 or end_amount <= 0:
-                messages.error(
-                    request, 'Enter positive and non-zero value for start/end amount.',
+                messages.error(request, 'Enter positive and non-zero value ' \
+                                        'for start/end amount.',
                     extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
             elif validity_days <= 0:
@@ -599,59 +607,65 @@ class NetworkDenomination(ProtectedView):
                     extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
 
+            user_profile = models.UserProfile.objects.get(user=request.user)
             with transaction.atomic():
-                user_profile = models.UserProfile.objects.get(user=request.user)
-                with transaction.atomic():
-                    if dnm_id > 0:
-                        try:
-                            denom = models.NetworkDenomination.objects.get(id=dnm_id)
-                            # Check for existing denomination range exist.
-                            denom_exists = models.NetworkDenomination.objects.filter(
-                                end_amount__gte=start_amount,
-                                start_amount__lte=end_amount,
-                                network=user_profile.network).exclude(id=dnm_id).count()
-                            if denom_exists:
-                                messages.error(
-                                    request, 'Denomination range already exists.',
-                                    extra_tags='alert alert-danger')
-                                return redirect(urlresolvers.reverse('network-denominations'))
-                            denom.network = user_profile.network
-                            denom.start_amount = start_amount
-                            denom.end_amount = end_amount
-                            denom.validity_days = validity_days
-                            denom.save()
-                            messages.success(
-                                request, 'Denomination is updated successfully.',
-                                extra_tags='alert alert-success')
-                        except models.NetworkDenomination.DoesNotExist:
-                            messages.error(
-                                request, 'Invalid denomination ID. Please try again.',
-                                extra_tags='alert alert-danger')
-                            return redirect(urlresolvers.reverse('network-denominations'))
-                    else:
+                if dnm_id > 0:
+                    try:
+                        denom = models.NetworkDenomination.objects.get(
+                            id=dnm_id)
                         # Check for existing denomination range exist.
-                        denom_exists = models.NetworkDenomination.objects.filter(
+                        denom_exists = models.NetworkDenomination.objects.\
+                            filter(
                             end_amount__gte=start_amount,
                             start_amount__lte=end_amount,
-                            network=user_profile.network).count()
+                            network=user_profile.network).\
+                            exclude(id=dnm_id).count()
                         if denom_exists:
                             messages.error(
-                                request, 'Denomination range already exists. Please enter valid start - end value.',
+                                request, 'Denomination range already exists.',
                                 extra_tags='alert alert-danger')
-                            return redirect(urlresolvers.reverse('network-denominations'))
-                        # Create new denomination for selected network
-                        denom = models.NetworkDenomination(network=user_profile.network)
+                            return redirect(
+                                urlresolvers.reverse('network-denominations'))
                         denom.network = user_profile.network
                         denom.start_amount = start_amount
                         denom.end_amount = end_amount
                         denom.validity_days = validity_days
                         denom.save()
                         messages.success(
-                            request, 'Denomination is created successfully.',
+                            request, 'Denomination is updated successfully.',
                             extra_tags='alert alert-success')
-        except Exception as inst:
+                    except models.NetworkDenomination.DoesNotExist:
+                        messages.error(
+                            request, 'Invalid denomination ID.',
+                            extra_tags='alert alert-danger')
+                        return redirect(
+                            urlresolvers.reverse('network-denominations'))
+                else:
+                    # Check for existing denomination range exist.
+                    denom_exists = models.NetworkDenomination.objects.filter(
+                        end_amount__gte=start_amount,
+                        start_amount__lte=end_amount,
+                        network=user_profile.network).count()
+                    if denom_exists:
+                        messages.error(
+                            request, 'Denomination range already exists.',
+                            extra_tags='alert alert-danger')
+                        return redirect(
+                            urlresolvers.reverse('network-denominations'))
+                    # Create new denomination for selected network
+                    denom = models.NetworkDenomination(
+                        network=user_profile.network)
+                    denom.network = user_profile.network
+                    denom.start_amount = start_amount
+                    denom.end_amount = end_amount
+                    denom.validity_days = validity_days
+                    denom.save()
+                    messages.success(
+                        request, 'Denomination is created successfully.',
+                        extra_tags='alert alert-success')
+        except Exception:
             messages.error(
-                request, 'Invalid request data. Please enter valid data and try again.',
+                request, 'Invalid request data. Please enter valid data.',
                 extra_tags='alert alert-danger')
         return redirect(urlresolvers.reverse('network-denominations'))
 
@@ -667,7 +681,9 @@ class NetworkDenomination(ProtectedView):
                 denom = models.NetworkDenomination.objects.get(id=dnm_id)
                 denom.delete()
                 response['status'] = 'success'
-                messages.success(request, 'Denomination deleted successfully.', extra_tags='alert alert-success')
+                messages.success(request,
+                                 'Denomination deleted successfully.',
+                                 extra_tags='alert alert-success')
             except models.NetworkDenomination.DoesNotExist:
                 response['status'] = 'failed'
                 messages.error(
@@ -676,9 +692,10 @@ class NetworkDenomination(ProtectedView):
         else:
             response['status'] = 'failed'
             messages.error(
-                request, 'Invalid request data. Please enter valid data and try again.',
+                request, 'Invalid request data. Please enter valid data.',
                 extra_tags='alert alert-danger')
-        return http.HttpResponse(json.dumps(response), content_type="application/json")
+        return http.HttpResponse(json.dumps(response),
+                                 content_type="application/json")
 
 
 class NetworkBalanceLimit(ProtectedView):
