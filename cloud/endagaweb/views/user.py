@@ -33,6 +33,9 @@ from django.template.loader import get_template
 from django.utils.translation import ugettext_lazy as _
 
 from endagaweb.models import UserProfile
+from django.utils import timezone
+import urlparse
+import re
 
 logger = logging.getLogger('endagaweb')
 
@@ -111,16 +114,27 @@ def auth_and_login(request):
     user = authenticate(username=request.POST['email'],
                         password=request.POST['password'])
     if user:
-        login(request, user)
-        next_url = '/dashboard'
-        if 'next' in request.POST and request.POST['next']:
-            next_url = request.POST['next']
-
-        # Notification, if blocked user is trying to log in
-        if not user.is_active:
+        if user.is_active:
+            login(request, user)
+            user = User.objects.get(username=user)
+            today = timezone.now()
+            user_profile = UserProfile.objects.get(user=user)
+            next_url = '/dashboard'
+            if 'next' in request.POST and request.POST['next']:
+                next_url = request.POST['next']
+            if (today - user_profile.last_pwd_update).days >= \
+                    settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
+                text = str(user) + ' , your account will be blocked in next ' + str(
+                settings.ENDAGA['PASSWORD_EXPIRED_DAY']- (today - user_profile.last_pwd_update).days)
+                messages.error(request, text)
+                return redirect(next_url)
+            else:
+                return redirect(next_url)
+        else:
+            # Notification, if blocked user is trying to log in
             text = "This user is blocked. Please contact admin."
             messages.error(request, text)
-        return redirect(next_url)
+            return redirect('/login/')
     else:
         text = "Sorry, that email / password combination is not valid."
         messages.error(request, text)
@@ -136,13 +150,26 @@ def change_password(request):
     required_params = ('old_password', 'new_password1', 'new_password2')
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
-    # Validate
-    redirect_url = '/dashboard/profile'
+    # Validate url for redirect
+    if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
+        redirect_url = '/password/change'
+    else:
+        redirect_url = '/dashboard/profile'
     if not request.user.check_password(request.POST['old_password']):
         text = 'Error: old password is incorrect.'
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
+    if not validate_password_strength(request.POST['new_password1']):
+        text = 'Error: password must contain at least 8 characters,contains alphanumeric and one special character..'
+        tags = 'password  alert alert-danger'
+        messages.info(request, text, extra_tags=tags)
+        return redirect(redirect_url)
+    if request.POST['old_password'] == request.POST['new_password1']:
+        text = 'Error: new password must not be old password.'
+        tags = 'password alert alert-danger'
+        messages.error(request, text, extra_tags=tags)
+        return  redirect(redirect_url)
     if request.POST['new_password1'] != request.POST['new_password2']:
         text = 'Error: new passwords do not match.'
         tags = 'password alert alert-danger'
@@ -155,10 +182,16 @@ def change_password(request):
         return redirect(redirect_url)
     # Everything checks out, change the password.
     request.user.set_password(request.POST['new_password1'])
+    user_profile = UserProfile.objects.get(user=request.user)
+    user_profile.last_pwd_update = timezone.now()
+    user_profile.save()
     request.user.save()
     text = 'Password changed successfully.'
     tags = 'password alert alert-success'
     messages.success(request, text, extra_tags=tags)
+    if urlparse.urlparse(request.META['HTTP_REFERER']
+                         ).path != '/dashboard/profile':
+        redirect_url = '/dashboard'
     return redirect(redirect_url)
 
 
@@ -318,3 +351,12 @@ def role_default_permissions(request):
 
         return JsonResponse({'permissions': list(role_permission)})
     return HttpResponseBadRequest()
+
+def validate_password_strength(value):
+    """Checks that a submitted value should match regex and return
+        boolean value
+    """
+
+    regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
+    pattern = re.compile(regex)
+    return bool(pattern.match(value))

@@ -84,6 +84,8 @@ urlpatterns = [
     url(r'^account/update', endagaweb.views.user.update_contact),
     url(r'^account/', endagaweb.views.dashboard.dashboard_view),
     url(r'^logout/$', django.contrib.auth.views.logout, {'next_page': '/'}),
+    # Added for ExpiredPassword
+    url(r'^password/change', endagaweb.views.user.change_expired_password),
 
     # Dashboard.
     url(r'^dashboard/card', endagaweb.views.dashboard.addcard),
