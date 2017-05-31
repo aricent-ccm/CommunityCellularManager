@@ -10,7 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 from django import http
 from django import template
-from django.views.generic import TemplateView, View
+from django.views.generic import TemplateView
 import yaml
 
 from endagaweb.models import UserProfile
@@ -52,9 +52,6 @@ class LandingIndexView(TemplateView):
         ]
         return context
 
-class TestView(View):
-    def get(self, request, *args, **kwargs):
-        return http.HttpResponse('OK')
 
 
 class InstaFiveHundred(TemplateView):
