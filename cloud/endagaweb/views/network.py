@@ -712,7 +712,7 @@ class NetworkBalanceLimit(ProtectedView):
         """Handles POST requests."""
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
-        method = request.method
+        success= []
         if 'limit' not in request.POST:
             return http.HttpResponseBadRequest()
         if 'transaction' not in request.POST:
@@ -727,29 +727,25 @@ class NetworkBalanceLimit(ProtectedView):
             try:
                 currency = network.subscriber_currency
                 if request.POST.get('limit'):
-                    limit = self. \
-                        validate_network_balancelimit(
-                        float(request.POST.get('limit')))
+                    limit = float(request.POST.get('limit'))
                     amount = parse_credits(limit,
                                            CURRENCIES[currency]).amount_raw
                     network.max_account_limit = amount
+                    success.append('Network maximum balance limit updated.')
                 if request.POST.get('transaction'):
-                    network.max_failure_transaction = request.POST.get('transaction')
+                    network.max_failure_transaction = float(request.POST.get('transaction'))
+                    success.append('Network maximun permissible unsuccessful transactions limit updated.')
                 network.save()
-            except ValueError as e:
-                messages.error(request, e.message,
+            except ValueError:
+                error_text = 'Error : please provide valid value.'
+                messages.error(request, error_text,
                                extra_tags="alert alert-danger")
                 return redirect(urlresolvers.reverse('network_balance_limit'))
         messages.success(request,
-                         'Network balance limit and transaction updated.',
+                         ''.join(success),
                          extra_tags="alert alert-success")
         return redirect(urlresolvers.reverse('network_balance_limit'))
 
 
-    def validate_network_balancelimit(self, limit_value):
-        if limit_value == 0:
-            error_text = 'Error : balance limit value must greater than zero.'
-            raise ValueError(error_text)
-        return limit_value
 
 

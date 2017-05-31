@@ -427,9 +427,10 @@ class PasswordResetRequestForm(PasswordResetForm):
 
 
 class NetworkBalanceLimit(forms.Form):
-      """Crispy form to set Network balance limit and transaction."""
+      """Crispy form to set Network balance limit and transaction.
+         set min_value =0.01 so that it will not accept 0 value"""
 
-      limit = forms.DecimalField(required=False, label="Maximum Balance Limit", decimal_places=2, min_value=0, max_value=2147483647)
+      limit = forms.DecimalField(required=False, label="Maximum Balance Limit", decimal_places=2, min_value=0.01, max_value=2147483647)
       transaction = forms.IntegerField(required=False, label="Maximum Permissible Unsuccessful Transactions", min_value=0, max_value=100)
 
       def __init__(self, *args, **kwargs):
