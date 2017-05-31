@@ -596,7 +596,7 @@ def zero_out_subscribers_balance(self):
     credit_balance = crdt.PNCounter("default").serialize()
     print "Validity expired for Susbcribers %s setting balance to 0" % (
         [subscriber.imsi for subscriber in subscribers],)
-    subscribers.update(state='inactive', crdt_balance=credit_balance)
+    subscribers.update(crdt_balance=credit_balance)
 
 
 @app.task(bind=True)

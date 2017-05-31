@@ -47,15 +47,15 @@ app.conf.update(CELERYBEAT_SCHEDULE={
     }, 'subscriber-validity-state': {
         'task': 'endagaweb.tasks.subscriber_validity_state',
         # Run this at 14:00 UTC (09:00 PDT, 01:00 Papua time).
-        'schedule': crontab(minute=0, hour=16),
+        'schedule': crontab(minute=0, hour=07),
     }, 'unblock-blocked-subscriber': {
         'task': 'endagaweb.tasks.unblock_blocked_subscribers',
         # Run this in every hour
         'schedule': crontab(minute=59),
     }, 'zero_out_subscribers_balance': {
         'task': 'endagaweb.tasks.zero_out_subscribers_balance',
-        # Run this at 12:00 AM UTC.
-        'schedule': crontab(minute='0', hour=0),
+        # Run this at 12:00 UTC (07:00 PDT, 12:00 Papua time).
+        'schedule': crontab(minute='0', hour=07),
     }, 'block-user': {
         'task': 'endagaweb.tasks.block_user',
         # Run this at 15:00 UTC (10:00 PDT, 02:00 Papua time)

@@ -127,6 +127,7 @@ class TowerList(drf_views.APIView):
 
 class TowerInfo(ProtectedView):
     """View info on a single tower."""
+    permission_required = ['view_bts','add_bts','change_bts','deregister_bts']
 
     def get(self, request, uuid=None):
         """Handles GET requests."""
