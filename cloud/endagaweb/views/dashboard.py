@@ -47,7 +47,8 @@ from ccm.common.currency import parse_credits, humanize_credits, \
 from endagaweb import tasks
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
-                              Network, NetworkDenomination, PendingCreditUpdate, Number)
+                              Network, NetworkDenomination,
+                              PendingCreditUpdate, Number)
 from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
 
@@ -209,7 +210,8 @@ def billing_view(request):
     msgs = messages.get_messages(request)
     for m in msgs:
         if "billing_resp_code" in m.tags:
-            context[m.message] = True  # pass the message on to the template as-is
+            context[
+                m.message] = True  # pass the message on to the template as-is
 
     if network.stripe_card_type == "American Express":
         context['card_type'] = 'AmEx'
@@ -307,7 +309,9 @@ class SubscriberInfo(ProtectedView):
             context['created'] = None
         try:
             # Get balance expire date for subscriber's first number and from some admin number.
-            number_details = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
+            number_details = Number.objects.filter(subscriber__imsi=imsi,
+                                                   subscriber__network=network)[
+                             0:1].get()
             context['valid_through'] = number_details.valid_through
         except Number.DoesNotExist:
             context['valid_through'] = None
@@ -545,7 +549,8 @@ class SubscriberAdjustCredit(ProtectedView):
             }
             context = {
                 'networks': get_objects_for_user(request.user,
-                                                 'view_network', klass=Network),
+                                                 'view_network',
+                                                 klass=Network),
                 'currency': CURRENCIES[network.subscriber_currency],
                 'user_profile': user_profile,
                 'subscriber': subscriber,
@@ -560,7 +565,6 @@ class SubscriberAdjustCredit(ProtectedView):
             return HttpResponse(html)
         except Subscriber.DoesNotExist:
             return dashboard_view(request)
-
 
     def post(self, request, imsi=None):
         """Operators can use this API to add credit to a subscriber.
@@ -603,10 +607,13 @@ class SubscriberAdjustCredit(ProtectedView):
                 # Update user validity for recharge denomination amount
                 if denom_exists.validity_days > 0:
                     now = datetime.datetime.now(pytz.UTC)
-                    expiry_date = now + datetime.timedelta(days=denom_exists.validity_days)
+                    expiry_date = now + datetime.timedelta(
+                        days=denom_exists.validity_days)
                     try:
                         # Get subscriber's first number and from some admin number.
-                        num = Number.objects.filter(subscriber__imsi=imsi, subscriber__network=network)[0:1].get()
+                        num = Number.objects.filter(subscriber__imsi=imsi,
+                                                    subscriber__network=network)[
+                              0:1].get()
                         if num.valid_through is None:
                             num.valid_through = expiry_date
                             num.save()
@@ -615,10 +622,13 @@ class SubscriberAdjustCredit(ProtectedView):
                             num.save()
                         # Validation suceeded, create a PCU and start the update credit task.
                         msgid = str(uuid.uuid4())
-                        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid, amount=amount)
+                        credit_update = PendingCreditUpdate(subscriber=sub,
+                                                            uuid=msgid,
+                                                            amount=amount)
                         credit_update.save()
                         tasks.update_credit.delay(sub.imsi, msgid)
-                        messages.success(request, "Amount credited to subscriber successfully.",
+                        messages.success(request,
+                                         "Amount credited to subscriber successfully.",
                                          extra_tags="alert alert-success")
                         return adjust_credit_redirect
                     except Number.DoesNotExist:
@@ -629,7 +639,7 @@ class SubscriberAdjustCredit(ProtectedView):
                 raise ValueError(error_text)
         except ValueError:
             messages.error(request, error_text,
-                         extra_tags="alert alert-danger")
+                           extra_tags="alert alert-danger")
             return adjust_credit_redirect
 
     def delete(self, request, imsi=None):
@@ -752,7 +762,7 @@ class ActivityView(ProtectedView):
                                                                None)
             # Added to check password to download the csv
             if (request.user.check_password(request.POST.get('password'))):
-                response={'status':'ok','message':'authorize' }
+                response = {'status': 'ok', 'message': 'authorize'}
                 return HttpResponse(json.dumps(response),
                                     content_type="application/json")
 
@@ -815,7 +825,8 @@ class ActivityView(ProtectedView):
             # TODO(shaddi): use a filename that captures the search terms?
             response['Content-Disposition'] = ('attachment;filename='
                                                '"etage-%s.csv"') \
-               % (datetime.datetime.now().date(),)
+                                              % (
+                                                  datetime.datetime.now().date(),)
             writer = csv.writer(response)
             writer.writerow(headers)
             # Forcibly limit to 7000 items.
@@ -969,9 +980,9 @@ class ActivityView(ProtectedView):
             # subscribers' events to the results
             potential_subs = (
                 Number.objects.filter(number__icontains=query)
-                              .values('subscriber')
-                              .filter(subscriber__network=network)
-                              .distinct())
+                    .values('subscriber')
+                    .filter(subscriber__network=network)
+                    .distinct())
             if potential_subs:
                 events |= (UsageEvent.objects
                            .filter(subscriber__in=potential_subs))
@@ -1003,7 +1014,8 @@ class UserManagement(ProtectedView):
                  'download_graph', 'deactive_subscriber'])
 
         # Set the context with various stats.
-        content_type = ContentType.objects.filter(app_label='endagaweb', model__in=permission_set).\
+        content_type = ContentType.objects.filter(app_label='endagaweb',
+                                                  model__in=permission_set). \
             values_list('id', flat=True)
 
         permission = []
@@ -1100,7 +1112,8 @@ class UserManagement(ProtectedView):
             print ex
             mail_info = '\n Please configure email to send password reset ' \
                         'link to user'
-            messages.warning(request, mail_info, extra_tags="alert alert-danger")
+            messages.warning(request, mail_info,
+                             extra_tags="alert alert-danger")
         # Re-connect the signal before return if it reaches exception
         post_save.connect(UserProfile.new_user_hook, sender=User)
 
@@ -1121,22 +1134,22 @@ class UserDelete(ProtectedView):
 
         # Use render_table to hide/unhide users on search page.
         user_profile = UserProfile.objects.get(user=request.user)
-        # exclude cloud admin for every scenario
         query = request.GET.get('query', None)
 
         if query:
             query_users = (
-                User.objects.filter(username__icontains=query)).exclude(is_superuser=True)
+                User.objects.filter(username__icontains=query))
             if not user_profile.user.is_superuser:
-                query_users = query_users.exclude(is_staff=True)
+                query_users = (
+                    User.objects.filter(username__icontains=query)).exclude(
+                    is_superuser=True)
             render_table = True
         else:
-            # Will Display all users, currently not showing any!
             query_users = (
                 User.objects.all()).exclude(is_superuser=True)
-            if not user_profile.user.is_superuser:
-                query_users = query_users.exclude(is_staff=True)
+            # Set True to display all users without search
             render_table = False
+
 
         # Setup the subscriber table.
         user_table = django_tables.UserTable(list(query_users))
@@ -1153,7 +1166,6 @@ class UserDelete(ProtectedView):
                                              klass=Network),
         }
         # Check logged in user permission for delete user
-
         if not user_profile.user.is_staff:
             info_template = get_template('dashboard/403.html')
         else:
@@ -1171,24 +1183,31 @@ class UserDelete(ProtectedView):
             user = User.objects.get(id=request.GET['user'])
         except User.DoesNotExist:
             return HttpResponseBadRequest()
-
-        # CA can delete NA/BA/Partner/Loader
-        # NA can delete BA/Partner/Loader
         if not user_profile.user.is_staff:
             info_template = get_template('dashboard/403.html')
             html = info_template.render({}, request)
             return HttpResponse(html)
 
-        if ((
-                user_profile.user.is_superuser and user_profile.user.is_staff) and (not user.is_superuser)) or \
-                (user_profile.user.is_staff and (not user.is_staff)):
+        if ((user_profile.user.is_superuser and user_profile.user.is_staff) and
+                (not user.is_superuser)) or (user_profile.user.is_staff and (not user.is_staff)):
             user.delete()
             message = '%s deleted successfully!' % user.username
+            messages.success(request, message,
+                           extra_tags="alert alert-danger")
+        elif user_profile.user.id == user.id:
+            message = 'You cannot delete yourself.'
+            messages.error(request, message, extra_tags="alert alert-danger")
         else:
-            message = '%s cannot be deleted!' % user.username
+            role = 'Cloud Admin'
+            message = 'You don\'t have sufficient privileges to delete %s(%s).' % (
+                user.username, role)
+            if user.is_superuser:
+                role = 'Network Admin'
+                message = 'You cannot delete %s (%s).Please contact Cloud ' \
+                          'Admin for support!' % (user.username, role)
+            messages.error(request, message, extra_tags="alert alert-danger")
 
-        messages.success(request, message)
-        return HttpResponse(message)
+        return HttpResponse(request, message)
 
 
 class UserBlockUnblock(ProtectedView):
@@ -1197,20 +1216,12 @@ class UserBlockUnblock(ProtectedView):
         query = request.GET.get('query', None)
 
         if query:
-            # Exclude Super/Django Admin
             query_users = (
-                User.objects.filter(username__icontains=query)).exclude(is_superuser=True)
-            if not user_profile.user.is_superuser:
-                query_users = query_users.exclude(is_staff=True)
-
+                User.objects.filter(username__icontains=query))
         else:
-            # Display all blocked users for CA and exclude CA for Network Admin.
             query_users = User.objects.all().exclude(is_active=True)
-            if not user_profile.user.is_superuser:
-                query_users = query_users.exclude(is_superuser=True)
-
-        # Cannot Block/Unblock itself so exclude it
-        query_users = query_users.exclude(username=user_profile.user.username)
+        if not user_profile.user.is_superuser:
+            query_users = query_users.exclude(is_superuser=True)
 
         # Setup the subscriber table.
         user_table = django_tables.BlockedUserTable(list(query_users))
@@ -1245,29 +1256,30 @@ class UserBlockUnblock(ProtectedView):
             user = User.objects.get(id=request.GET['user'])
         except User.DoesNotExist:
             return HttpResponseBadRequest()
-
-        if user.is_active:
-            current_status = 'Unblocked'
-        else:
-            current_status = 'Blocked'
-
         if ((user_profile.user.is_superuser and user_profile.user.is_staff) and
-                (not user.is_superuser)) or (user_profile.user.is_staff and (not user.is_staff)):
-
+                (not user.is_superuser)) or (
+                    user_profile.user.is_staff and (not user.is_staff)):
             if user.is_active:
                 user.is_active = False
                 message = '%s is Blocked!' % user.username
             else:
                 user.is_active = True
                 message = '%s is Unblocked!' % user.username
-
             user.save()
-            messages.success(request, message)
+            messages.success(request, message,  extra_tags="alert "
+                                                           "alert-success")
             return HttpResponse(message)
-
-        message = 'Cannot %s %s' % (current_status, user.username)
-        messages.info(request, message)
-        return HttpResponse(message)
+        elif user_profile.user.id == user.id:
+            message = 'You cannot block yourself.'
+            messages.error(request, message, extra_tags="alert alert-danger")
+        else:
+            if user.is_active:
+                status = 'Block'
+            else:
+                status = 'Unblock'
+            message = 'Cannot %s %s' % (status, user.username)
+            messages.error(request, message, extra_tags="alert alert-danger")
+        return HttpResponse(request, message)
 
 
 class SubscriberCategoryEdit(ProtectedView):
@@ -1339,7 +1351,7 @@ class SubscriberCategoryEdit(ProtectedView):
                 update_imsi.update(role=category)
                 message = "IMSI category updated successfully"
                 messages.success(request, message,
-                                 extra_tags="alert alert-success" )
+                                 extra_tags="alert alert-success")
             except Exception as e:
                 message = "IMSI category update cannot happen"
                 messages.error(request, message,

@@ -248,11 +248,11 @@ def vacuum_inactive_subscribers(self):
         # Do nothing if subscriber vacuuming is disabled for the network.
         if not network.sub_vacuum_enabled:
             continue
-        inactives = network.get_outbound_inactive_subscribers(
-            network.sub_vacuum_inactive_days)
+        inactives = Subscriber.objects.filter(
+            state='recycle', network_id=network.id,
+            prevent_automatic_deactivation=False
+        )
         for subscriber in inactives:
-            if subscriber.prevent_automatic_deactivation:
-                continue
             print 'vacuuming %s from network %s' % (subscriber.imsi, network)
             subscriber.deactivate()
             # Sleep a bit in between each deactivation so we don't flood the
@@ -459,8 +459,6 @@ def unblock_blocked_subscribers(self):
                                             block_time__lte=unblock_time)
     if not subscribers:
         return  # Do nothing
-
-    # Todo(sagar): Remove Subscriber Entry from Subscriber's Invalid Event
     print 'Unblocking subscribers %s blocked for past 24 hours' % (
         [subscriber.imsi for subscriber in subscribers], )
     subscribers.update(is_blocked=False, block_time=None,
@@ -489,8 +487,8 @@ def subscriber_validity_state(self):
             days=subscriber.network.sub_vacuum_grace_days)
         current_state = str(subscriber.state)
 
-        if subscriber_validity < today and (current_state != 'inactive'):
-            if today <= first_expire:
+        if subscriber_validity < today:
+            if today <= first_expire and (current_state != 'inactive'):
                 subscriber.state = 'inactive'
                 subscriber.save()
                 print "Updating subscriber(%s) state to 'Inactive'" % (
@@ -498,8 +496,6 @@ def subscriber_validity_state(self):
             elif today > recycle:
                 # Let deactivation of subscriber be handled by
                 # vacuum_inactive_subscribers
-                if subscriber.prevent_automatic_deactivation:
-                    continue
                 subscriber.state = 'recycle'
                 subscriber.save()
                 print "Updating subscriber(%s) state to 'Recycle'" % (
@@ -564,14 +560,14 @@ def validity_expiry_sms(self, days=7):
         elif subscriber_validity < today:
             if prior_first_expire == today or today == (
                         prior_first_expire + datetime.timedelta(
-                        days=days + 1)):
+                        days=days - 1)):
                 body = 'Your validity has expired on %s, Please recharge ' \
                        'immediately to activate your services again! ' % (
                            subscriber_validity,)
                 sms_notification(body=body, to=number)
             # Prior to recycle state
             elif prior_recycle == today or today == (
-                        prior_recycle + datetime.timedelta(days=days + 1)):
+                        prior_recycle + datetime.timedelta(days=days - 1)):
                 body = 'Warning: Your validity has expired on %s , Please ' \
                        'recharge immediately to avoid deactivation of your ' \
                        'connection! ' % (subscriber_validity,)
