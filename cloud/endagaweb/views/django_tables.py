@@ -432,6 +432,27 @@ class SubscriberManagementTable(tables.Table):
         return render_imsi(record)
 
 
+class DenominationListTable(tables.Table):
+    """A django-tables2 Table definition for the table list."""
+
+    class Meta:
+        model = models.NetworkDenomination
+        fields = ('start_amount', 'end_amount', 'validity_days')
+        attrs = {'class': 'table table-hover'}
+
+    start_amount = tables.Column(empty_values=(), verbose_name='Start Amount')
+    end_amount = tables.Column(empty_values=(), verbose_name='End Amount')
+    validity_days = tables.Column(empty_values=(), verbose_name='Validity(Days)')
+
+    def render_start_amount(self, record):
+        return humanize_credits(record.start_amount,
+                                CURRENCIES[record.network.subscriber_currency])
+
+    def render_end_amount(self, record):
+        return humanize_credits(record.end_amount,
+                                CURRENCIES[record.network.subscriber_currency])
+
+
 class DenominationTable(tables.Table):
     """A django-tables2 Table definition for the table list."""
 
@@ -448,6 +469,7 @@ class DenominationTable(tables.Table):
     def render_start_amount(self, record):
         return humanize_credits(record.start_amount,
                                 CURRENCIES[record.network.subscriber_currency])
+
     def render_end_amount(self, record):
         return humanize_credits(record.end_amount,
                                 CURRENCIES[record.network.subscriber_currency])

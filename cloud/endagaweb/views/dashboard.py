@@ -536,6 +536,7 @@ class SubscriberAdjustCredit(ProtectedView):
 
     def get(self, request, imsi=None):
         """Handles GET requests."""
+
         user_profile = UserProfile.objects.get(user=request.user)
         network = user_profile.network
         try:
@@ -610,6 +611,7 @@ class SubscriberAdjustCredit(ProtectedView):
                     expiry_date = now + datetime.timedelta(
                         days=denom_exists.validity_days)
                     try:
+                        """
                         # Get subscriber's 1st number from some admin number.
                         num = Number.objects.filter(
                             subscriber__imsi=imsi,
@@ -622,14 +624,21 @@ class SubscriberAdjustCredit(ProtectedView):
                             num.save()
                         sub.state = 'active'
                         sub.save()
+                        """
                         # Validation suceeded, create a PCU and start the
                         # update credit task.
                         msgid = str(uuid.uuid4())
                         credit_update = PendingCreditUpdate(subscriber=sub,
                                                             uuid=msgid,
                                                             amount=amount)
+                        credit_update.valid_through=expiry_date
                         credit_update.save()
                         tasks.update_credit.delay(sub.imsi, msgid)
+
+                        # For internal testing
+                        #from endagaweb.tasks import update_credit
+                        #update_credit(sub.imsi, msgid)
+
                         message = "Amount credited to subscriber successfully."
                         messages.success(request, message,
                                          extra_tags="alert alert-success")

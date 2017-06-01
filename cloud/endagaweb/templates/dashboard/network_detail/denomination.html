@@ -50,14 +50,10 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             {% endfor %}
             <div class="table-container">
-                {% if user_profile.user.is_staff %}
-                    {% if denomination %}
-                    {% render_table denominations_table %}
-                    {% else %}
-                        <p>There are currently no denominations associated with this network.</p>
-                    {% endif %}
+                {% if denomination %}
+                {% render_table denominations_table %}
                 {% else %}
-                    <p>Permission denied! Please contact to administrator</p>
+                    <p>There are currently no denominations associated with this network.</p>
                 {% endif %}
             </div>
         </div>

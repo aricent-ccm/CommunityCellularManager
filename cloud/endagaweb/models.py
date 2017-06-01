@@ -993,6 +993,7 @@ class PendingCreditUpdate(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     amount = models.BigIntegerField()
+    valid_through = models.DateTimeField(null=True, blank=True)
     uuid = models.TextField()
 
     def __unicode__(self):
