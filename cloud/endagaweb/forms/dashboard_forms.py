@@ -153,6 +153,19 @@ class SubscriberSearchForm(forms.Form):
 
 class ChangePasswordForm(PasswordChangeForm):
     """Change password form visible on user profile page."""
+    """Updated to show password policy text. """
+    old_password = forms.CharField(required=True, label='Old Password',
+                                   widget=forms.PasswordInput(attrs={
+                                       'title': 'Enter Old Password'}),
+                                   )
+    new_password1 = forms.CharField(required=True, label='New Password',
+                                    widget=forms.PasswordInput(attrs={
+                                        'title': 'Password must contain at least 8 characters,contains '
+                                                 'alphanumeric and one special character.'}), )
+    new_password2 = forms.CharField(required=True, label='Confirm Password',
+                                    widget=forms.PasswordInput(attrs={
+                                        'title': 'Confirm Password'}), )
+
     def __init__(self, *args, **kwargs):
         super(ChangePasswordForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper()

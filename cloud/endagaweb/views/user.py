@@ -27,6 +27,9 @@ from django.utils.translation import ugettext_lazy as _
 
 from endagaweb.models import UserProfile
 import logging
+from django.utils import timezone
+import urlparse
+import re
 
 logger = logging.getLogger('endagaweb')
 
@@ -103,11 +106,28 @@ def auth_and_login(request):
     user = authenticate(username=request.POST['email'],
                         password=request.POST['password'])
     if user:
-        login(request, user)
-        next_url = '/dashboard'
-        if 'next' in request.POST and request.POST['next']:
-            next_url = request.POST['next']
-        return redirect(next_url)
+        if user.is_active:
+            login(request, user)
+            user = User.objects.get(username=user)
+            today = timezone.now()
+            user_profile = UserProfile.objects.get(user=user)
+            next_url = '/dashboard'
+            if 'next' in request.POST and request.POST['next']:
+                next_url = request.POST['next']
+            if (today - user_profile.last_pwd_update).days >= \
+                    settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS']:
+                text = str(user) + ' , your account will be blocked in next '\
+                       + str(settings.ENDAGA['PASSWORD_EXPIRED_DAY'] -
+                             (today - user_profile.last_pwd_update).days)
+                messages.error(request, text)
+                return redirect(next_url)
+            else:
+                return redirect(next_url)
+        else:
+            # Notification, if blocked user is trying to log in
+            text = "This user is blocked. Please contact admin."
+            messages.error(request, text)
+            return redirect('/login/')
     else:
         text = "Sorry, that email / password combination is not valid."
         messages.error(request, text)
@@ -123,13 +143,26 @@ def change_password(request):
     required_params = ('old_password', 'new_password1', 'new_password2')
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
-    # Validate
-    redirect_url = '/dashboard/profile'
+    # Validate url for redirect
+    if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
+        redirect_url = '/password/change'
+    else:
+        redirect_url = '/dashboard/profile'
     if not request.user.check_password(request.POST['old_password']):
         text = 'Error: old password is incorrect.'
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
+    if not validate_password_strength(request.POST['new_password1']):
+        text = 'Error: password must contain at least 8 characters,contains alphanumeric and one special character..'
+        tags = 'password  alert alert-danger'
+        messages.info(request, text, extra_tags=tags)
+        return redirect(redirect_url)
+    if request.POST['old_password'] == request.POST['new_password1']:
+        text = 'Error: new password must not be old password.'
+        tags = 'password alert alert-danger'
+        messages.error(request, text, extra_tags=tags)
+        return  redirect(redirect_url)
     if request.POST['new_password1'] != request.POST['new_password2']:
         text = 'Error: new passwords do not match.'
         tags = 'password alert alert-danger'
@@ -142,10 +175,16 @@ def change_password(request):
         return redirect(redirect_url)
     # Everything checks out, change the password.
     request.user.set_password(request.POST['new_password1'])
+    user_profile = UserProfile.objects.get(user=request.user)
+    user_profile.last_pwd_update = timezone.now()
+    user_profile.save()
     request.user.save()
     text = 'Password changed successfully.'
     tags = 'password alert alert-success'
     messages.success(request, text, extra_tags=tags)
+    if urlparse.urlparse(request.META['HTTP_REFERER']
+                         ).path != '/dashboard/profile':
+        redirect_url = '/dashboard'
     return redirect(redirect_url)
 
 
@@ -219,3 +258,94 @@ def update_notify_numbers(request):
             return redirect("/dashboard/profile")
     return HttpResponseBadRequest()
 
+
+@login_required(login_url='/login/')
+def check_user(request):
+    if request.method == 'GET':
+        context = {}
+        if 'email' in request.GET:
+            if User.objects.filter(email=request.GET['email']).exists():
+                context['email_available'] = False
+            else:
+                context['email_available'] = True
+        elif 'username' in request.GET:
+            if User.objects.filter(username=request.GET['username']).exists():
+                context['username_available'] = False
+            else:
+                context['username_available'] = True
+
+        return JsonResponse(context)
+    return HttpResponseBadRequest()
+
+# This view handles the password reset.
+def reset(request):
+    return password_reset(request,
+                          email_template_name=
+                          'dashboard/user_management/reset_email.html',
+                          subject_template_name=
+                          'dashboard/user_management/reset_subject.txt',
+                          post_reset_redirect=reverse('user-management'))
+
+
+# This view handles the changing password to reset.
+def reset_confirm(request, uidb64=None, token=None):
+    return password_reset_confirm(request, uidb64=uidb64,
+                                  template_name=
+                                  'dashboard/user_management/reset_confirm.html',
+                                  token=token, post_reset_redirect=
+                                  reverse('success'))
+
+
+def success(request):
+    return render(request, "dashboard/user_management/success.html")
+
+
+@login_required(login_url='/login/')
+def role_default_permissions(request):
+    if request.method == 'GET':
+        role = request.GET['role']
+        permission_set = ['credit', 'graph', 'report', "smsbroadcast", "tower",
+                          "bts", "subscriber", "network",
+                          "notification", "usageevent"]
+
+        business_analyst = ['view_graph', 'view_report', 'view_bts',
+                            'view_subscriber', 'view_network']
+
+        loader = ['view_graph', 'view_report', 'view_bts', 'view_subscriber',
+                  'view_network', 'change_subscriber', 'change_network',
+                  'add_subscriber', 'add_sms', 'add_credit', 'download_graph']
+
+        partner = ['view_graph', 'view_report', 'view_bts', 'view_subscriber',
+                   'view_network', 'edit_subscriber', 'edit_network',
+                   'add_subscriber', 'add_sms', 'download_graph']
+
+        content_type = ContentType.objects.filter(app_label='endagaweb',
+                                                  model__in=
+                                                  permission_set).values_list('id', flat=True)
+        permission = Permission.objects.filter(
+            content_type__in=content_type).values_list('id', flat=True)
+        role_permission = []
+        if role == 'Business Analyst':
+            role_permission = Permission.objects.filter(
+                codename__in=business_analyst).values_list('id', flat=True)
+        elif role == 'Loader':
+            role_permission = Permission.objects.filter(
+                codename__in=loader).values_list('id', flat=True)
+        elif role == 'Partner':
+            role_permission = Permission.objects.filter(
+                codename__in=partner).values_list('id', flat=True)
+        else:
+            for i in permission:
+                role_permission.append(i)
+
+        return JsonResponse({'permissions': list(role_permission)})
+    return HttpResponseBadRequest()
+
+def validate_password_strength(value):
+    """Checks that a submitted value should match regex and return
+        boolean value
+    """
+
+    regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
+    pattern = re.compile(regex)
+    return bool(pattern.match(value))

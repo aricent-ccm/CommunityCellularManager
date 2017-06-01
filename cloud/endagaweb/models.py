@@ -77,7 +77,10 @@ class UserProfile(models.Model):
     # because a user may have permissions on other Network instances.
     # For example to get a list of networks the user can view:
     # >>> get_objects_for_user(user_profile.user, 'view_network', klass=Network)
-    network = models.ForeignKey('Network', null=True, on_delete=models.SET_NULL)
+    network = models.ForeignKey('Network', null=True,
+                                on_delete=models.SET_NULL)
+    # Added for Password Expiry
+    last_pwd_update = models.DateTimeField(auto_now=True)
 
     def __str__(self):
           return "%s's profile" % self.user
