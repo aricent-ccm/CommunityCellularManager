@@ -488,23 +488,27 @@ def subscriber_validity_state(self):
         current_state = str(subscriber.state)
 
         if subscriber_validity < today:
-            if today <= first_expire and (current_state != 'inactive'):
-                subscriber.state = 'inactive'
-                subscriber.save()
-                print "Updating subscriber(%s) state to 'Inactive'" % (
-                    subscriber.imsi,)
+            if today <= first_expire:
+                # Do nothing if it's already first expired
+                if current_state != 'first_expired':
+                    subscriber.state = 'first_expired'
+                    subscriber.save()
+                    print "Updating subscriber(%s) state to 'First Expired'" % (
+                        subscriber.imsi,)
             elif today > recycle:
                 # Let deactivation of subscriber be handled by
                 # vacuum_inactive_subscribers
-                subscriber.state = 'recycle'
-                subscriber.save()
-                print "Updating subscriber(%s) state to 'Recycle'" % (
-                    subscriber.imsi,)
-            else:
-                if current_state != 'first_expire':
-                    subscriber.state = 'first_expire'
+                # Do nothing if it's already recycle
+                if current_state != 'recycle':
+                    subscriber.state = 'recycle'
                     subscriber.save()
-                    print "Updating subscriber(%s) state to 'First Expire'" % (
+                    print "Updating subscriber(%s) state to 'Recycle'" % (
+                        subscriber.imsi,)
+            else:
+                if current_state != 'expired':
+                    subscriber.state = 'expired'
+                    subscriber.save()
+                    print "Updating subscriber(%s) state to 'Expired'" % (
                         subscriber.imsi,)
 
 
