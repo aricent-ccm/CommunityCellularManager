@@ -8,6 +8,7 @@ LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 """
 import uuid
+
 import django
 
 
@@ -17,12 +18,16 @@ def get_db_time(connection):
     return cursor.fetchone()[0]
 
 
-def format_transaction(transaction, negative=False):
+def format_transaction(tansaction_date=None, transaction_type=False):
     # Generating new transaction id using old transaction and date
-    tr = str(uuid.uuid4().hex[:4])
-    dt = str(django.utils.timezone.now().date()).replace('-', '')
-    transaction_id = '{0}id{1}{2}'.format(dt, tr, str(transaction)[:8])
-    if negative:
-        return '-%s' % (transaction_id, )
+    if tansaction_date is None:
+        dt = django.utils.timezone.now()
     else:
-        return transaction_id
+        dt = tansaction_date
+    uuid_transaction = str(uuid.uuid4().hex[:6])
+    transaction = '{0}id{1}'.format(str(dt.date()).replace('-', ''),
+                                    uuid_transaction)
+    if transaction_type:
+        return '-%s' % (transaction,)
+    else:
+        return transaction
