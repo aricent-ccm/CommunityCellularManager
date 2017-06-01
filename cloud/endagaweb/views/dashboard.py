@@ -1112,7 +1112,7 @@ class UserManagement(ProtectedView):
         except Exception as ex:
             # Todo: proper handling of email
             # Checking mail log on terminal
-            print ex
+            logger.error(ex)
             mail_info = '\n Please configure email to send password reset ' \
                         'link to user'
             messages.warning(request, mail_info,
