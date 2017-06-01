@@ -668,7 +668,8 @@ class NetworkDenomination(ProtectedView):
                         extra_tags='alert alert-success')
         except Exception:
             messages.error(
-                request, 'Invalid  data.',
+                request, 'Invalid validity value. Enter greater than ' \
+                         '0 digit value',
                 extra_tags='alert alert-danger')
         return redirect(urlresolvers.reverse('network-denominations'))
 
@@ -732,16 +733,24 @@ class NetworkBalanceLimit(ProtectedView):
         """Handles POST requests."""
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
-        success= []
+        success = []
         if 'limit' not in request.POST:
             return http.HttpResponseBadRequest()
         if 'transaction' not in request.POST:
             return http.HttpResponseBadRequest()
+        limit = float(request.POST.get('limit') or 0)
 
         if request.POST.get('transaction') == "" and request.POST.get(
                 'limit') == "":
             error_text = 'Error : please provide value.'
-            messages.error(request, error_text, extra_tags="alert alert-danger")
+            messages.error(request, error_text,
+                           extra_tags="alert alert-danger")
+            return redirect(urlresolvers.reverse('network_balance_limit'))
+        if request.POST.get('transaction') == "" and limit <= 0:
+            error_text = 'Error : Enter positive and non-zero value ' \
+                                        'for balance limit.'
+            messages.error(request, error_text,
+                           extra_tags="alert alert-danger")
             return redirect(urlresolvers.reverse('network_balance_limit'))
         with transaction.atomic():
             try:
@@ -753,8 +762,10 @@ class NetworkBalanceLimit(ProtectedView):
                     network.max_account_limit = amount
                     success.append('Network maximum balance limit updated.')
                 if request.POST.get('transaction'):
-                    network.max_failure_transaction = float(request.POST.get('transaction'))
-                    success.append('Network maximun permissible unsuccessful transactions limit updated.')
+                    transaction_val = float(request.POST.get('transaction'))
+                    network.max_failure_transaction = transaction_val
+                    success.append('Network maximun permissible unsuccessful' \
+                                   ' transactions limit updated.')
                 network.save()
             except ValueError:
                 error_text = 'Error : please provide valid value.'
