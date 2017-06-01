@@ -611,20 +611,6 @@ class SubscriberAdjustCredit(ProtectedView):
                     expiry_date = now + datetime.timedelta(
                         days=denom_exists.validity_days)
                     try:
-                        """
-                        # Get subscriber's 1st number from some admin number.
-                        num = Number.objects.filter(
-                            subscriber__imsi=imsi,
-                            subscriber__network=network)[0:1].get()
-                        if num.valid_through is None:
-                            num.valid_through = expiry_date
-                            num.save()
-                        elif expiry_date >= num.valid_through:
-                            num.valid_through = expiry_date
-                            num.save()
-                        sub.state = 'active'
-                        sub.save()
-                        """
                         # Validation suceeded, create a PCU and start the
                         # update credit task.
                         msgid = str(uuid.uuid4())
@@ -634,14 +620,6 @@ class SubscriberAdjustCredit(ProtectedView):
                         credit_update.valid_through=expiry_date
                         credit_update.save()
                         tasks.update_credit.delay(sub.imsi, msgid)
-
-                        # For internal testing
-                        #from endagaweb.tasks import update_credit
-                        #update_credit(sub.imsi, msgid)
-
-                        message = "Amount credited to subscriber successfully."
-                        messages.success(request, message,
-                                         extra_tags="alert alert-success")
                         return adjust_credit_redirect
                     except Number.DoesNotExist:
                         error_text = 'Subscriber has no number assigned.'
