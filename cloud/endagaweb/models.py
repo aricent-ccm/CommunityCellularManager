@@ -28,14 +28,13 @@ from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
 from django.contrib.postgres.fields import ArrayField
-from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import connection
 from django.db import models
 from django.db import transaction
 from django.db.models import F
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
 
@@ -811,7 +810,7 @@ class UsageEvent(models.Model):
       downloaded_bytes: number of downloaded bytes for a GPRS event
       timespan: the duration of time over which the GPRS data was sampled
     """
-    transaction_id = models.UUIDField(editable=False, default=uuid.uuid4)
+    transaction_id = models.TextField()
     subscriber = models.ForeignKey(Subscriber, null=True,
                                    on_delete=models.SET_NULL)
     subscriber_imsi = models.TextField(null=True)
@@ -929,7 +928,6 @@ class UsageEvent(models.Model):
         event = instance
         if event.kind in INVALID_EVENTS:
             subscriber = Subscriber.objects.get(imsi=event.subscriber_imsi)
-
             if SubscriberInvalidEvents.objects.filter(
                     subscriber=event.subscriber).exists():
                 # Subscriber is blocked after 3 counts i.e there won't be UEs
@@ -937,14 +935,10 @@ class UsageEvent(models.Model):
                 subscriber_event = SubscriberInvalidEvents.objects.get(
                     subscriber=event.subscriber)
                 # if it is a 3rd event in 24hr block the subscriber
-                transactions_ids = subscriber_event.transactions + [
-                    event.transaction_id]
                 negative_transactions_ids = subscriber_event.negative_transactions + [
-                    dbutils.format_transaction(event.transaction_id,
-                                               negative=True)]
+                    event.transaction_id]
                 subscriber_event.count = subscriber_event.count + 1
                 subscriber_event.event_time = event.date
-                subscriber_event.transactions = transactions_ids
                 subscriber_event.negative_transactions = negative_transactions_ids
                 subscriber_event.save()
 
@@ -963,10 +957,7 @@ class UsageEvent(models.Model):
                 subscriber_event = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
                 subscriber_event.event_time = event.date
-                subscriber_event.transactions = [event.transaction_id]
-                subscriber_event.negative_transactions = [
-                    dbutils.format_transaction(event.transaction_id,
-                                               negative=True)]
+                subscriber_event.negative_transactions = [event.transaction_id]
                 subscriber_event.save()
         elif SubscriberInvalidEvents.objects.filter(
                 subscriber=event.subscriber).count() > 0:
@@ -978,10 +969,24 @@ class UsageEvent(models.Model):
                     event.subscriber_imsi))
                 subscriber_event.delete()
 
+    @staticmethod
+    def set_transaction_id(sender, instance=None, **kwargs):
+        """
+        Create transaction id to some readable format
+        Set transaction as negative transaction if error event
+        """
+        event = instance
+        if event.kind in INVALID_EVENTS:
+            negative = True
+        else:
+            negative = False
+        event.transaction_id = dbutils.format_transaction(instance.date,
+                                                          negative)
+
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)
 post_save.connect(UsageEvent.if_invalid_events, sender=UsageEvent)
-
+pre_save.connect(UsageEvent.set_transaction_id, sender=UsageEvent)
 
 class PendingCreditUpdate(models.Model):
     """A credit update that has yet to be acked by a BTS.
@@ -1984,5 +1989,4 @@ class SubscriberInvalidEvents(models.Model):
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     count = models.PositiveIntegerField()
     event_time = models.DateTimeField(auto_now_add=True)
-    transactions = ArrayField(models.UUIDField(), null=True)
     negative_transactions = ArrayField(models.TextField(), null=True)
