@@ -495,7 +495,10 @@ class NetworkDenomination(ProtectedView):
 
         # Configure the table of denominations. Do not show any pagination
         # controls if the total number of donominations is small.
-        denom_table = django_tables.DenominationTable(list(denom))
+        if not user_profile.user.is_staff:
+            denom_table = django_tables.DenominationListTable(list(denom))
+        else:
+            denom_table = django_tables.DenominationTable(list(denom))
         towers_per_page = 8
         paginate = False
         if denom > towers_per_page:
@@ -613,7 +616,7 @@ class NetworkDenomination(ProtectedView):
                         extra_tags='alert alert-success')
         except Exception:
             messages.error(
-                request, 'Invalid request data. Please enter valid data.',
+                request, 'Invalid  data.',
                 extra_tags='alert alert-danger')
         return redirect(urlresolvers.reverse('network-denominations'))
 
@@ -635,12 +638,12 @@ class NetworkDenomination(ProtectedView):
             except models.NetworkDenomination.DoesNotExist:
                 response['status'] = 'failed'
                 messages.error(
-                    request, 'Invalid denomination ID. Please try again.',
+                    request, 'Invalid denomination ID.',
                     extra_tags='alert alert-danger')
         else:
             response['status'] = 'failed'
             messages.error(
-                request, 'Invalid request data. Please enter valid data.',
+                request, 'Invalid request data.',
                 extra_tags='alert alert-danger')
         return http.HttpResponse(json.dumps(response),
                                  content_type="application/json")
