@@ -35,7 +35,7 @@ DATABASES['default']['ENGINE'] = 'django.contrib.gis.db.backends.postgis'
 # Hosts/domain names that are valid for this site; required if DEBUG is False.
 # ALLOWED_HOSTS env variable must be a comma-separated list of domains
 ALLOWED_HOSTS = [_.strip() for _ in
-                 os.environ.get('ALLOWED_HOSTS', "localhost").split(",")]
+                 os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')]
 
 # List of finder classes that know how to find static files in various
 # locations.
@@ -294,12 +294,12 @@ CELERY_QUEUES = {
 }
 
 # Email settings for sending reset mail
-#EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-#EMAIL_HOST = 'smtp.gmail.com'
-#EMAIL_USE_TLS = True
-#EMAIL_PORT = 587
-#EMAIL_HOST_USER = 'abc@gmail.com'
-#EMAIL_HOST_PASSWORD = 'password'
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_USE_TLS = True
+# EMAIL_PORT = 587
+# EMAIL_HOST_USER = 'abc@gmail.com'
+# EMAIL_HOST_PASSWORD = 'password'
 
 EMAIL_BACKEND = 'django_mailgun.MailgunBackend'
 MAILGUN_ACCESS_KEY = os.environ.get("MAILGUN_ACCESS_KEY", 'key-testkeypleaseignore')
