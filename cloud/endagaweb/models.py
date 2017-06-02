@@ -1469,8 +1469,7 @@ class ConfigurationKey(models.Model):
     Can be associated with many things.
     """
     bts = models.ForeignKey(BTS, null=True, blank=True, on_delete=models.CASCADE)
-    network = models.ForeignKey(Network, null=True, blank=True,
-                                on_delete=models.CASCADE)
+    network = models.ForeignKey(Network, null=True, blank=True, on_delete=models.CASCADE)
     category = models.TextField()  # "endaga", "openbts", etc..
     key = models.TextField()
     value = models.TextField()

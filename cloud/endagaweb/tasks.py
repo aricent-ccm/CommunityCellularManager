@@ -443,12 +443,12 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
 @app.task(bind=True)
 def block_user(self):
     """ Block  User if User password is not updated
-    for last 90 days
+    for last number of days which is  configured in a settings .
     """
-    six_month_ago = (django.utils.timezone.now() -
+    password_expired_duration = (django.utils.timezone.now() -
                         datetime.timedelta(
                             days=settings.ENDAGA['PASSWORD_EXPIRED_DAY']))
-    user_profiles = UserProfile.objects.filter(last_pwd_update__lte=six_month_ago)
+    user_profiles = UserProfile.objects.filter(last_pwd_update__lte=password_expired_duration)
     for user_profile in user_profiles:
         user_profile.user.is_active = False
         print '%s user is Blocked!' % user_profile.user.username

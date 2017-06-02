@@ -30,6 +30,9 @@ import logging
 from django.utils import timezone
 import urlparse
 import re
+from guardian.shortcuts import get_objects_for_user
+from endagaweb.forms import dashboard_forms as dform
+from endagaweb import models
 
 logger = logging.getLogger('endagaweb')
 
@@ -116,9 +119,10 @@ def auth_and_login(request):
                 next_url = request.POST['next']
             if (today - user_profile.last_pwd_update).days >= \
                     settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS']:
-                text = str(user) + ' , your account will be blocked in next '\
-                       + str(settings.ENDAGA['PASSWORD_EXPIRED_DAY'] -
-                             (today - user_profile.last_pwd_update).days)
+                password_expired_day_left = str(settings.ENDAGA['PASSWORD_EXPIRED_DAY']
+                                                - (today - user_profile.last_pwd_update).days)
+                text = '%s, your account will be blocked in next  %s days unless' \
+                       ' change your password' %(user, password_expired_day_left)
                 messages.error(request, text)
                 return redirect(next_url)
             else:
@@ -144,7 +148,8 @@ def change_password(request):
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
     # Validate url for redirect
-    if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
+    if urlparse.urlparse(request.META['HTTP_REFERER']
+                         ).path != '/dashboard/profile':
         redirect_url = '/password/change'
     else:
         redirect_url = '/dashboard/profile'
@@ -154,9 +159,10 @@ def change_password(request):
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
     if not validate_password_strength(request.POST['new_password1']):
-        text = 'Error: password must contain at least 8 characters,contains alphanumeric and one special character..'
-        tags = 'password  alert alert-danger'
-        messages.info(request, text, extra_tags=tags)
+        text = 'Error: password must contain at least 8 characters,contains ' \
+               'alphanumeric and one special character.'
+        tags = 'password alert alert-danger'
+        messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
     if request.POST['old_password'] == request.POST['new_password1']:
         text = 'Error: new password must not be old password.'
@@ -187,6 +193,24 @@ def change_password(request):
         redirect_url = '/dashboard'
     return redirect(redirect_url)
 
+@login_required(login_url='/login/')
+def change_expired_password(request):
+    """Render password change template to change
+        password
+    """
+    user_profile = UserProfile.objects.get(user=request.user)
+    network = user_profile.network
+    context = {
+        'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
+        'user_profile': user_profile,
+        'network': network,
+        'user_profile': user_profile,
+        'change_pass_form': dform.ChangePasswordForm(request.user),
+
+    }
+    template = get_template("dashboard/password_change.html")
+    html = template.render(context, request)
+    return HttpResponse(html)
 
 @login_required(login_url='/login/')
 def update_contact(request):
@@ -258,94 +282,19 @@ def update_notify_numbers(request):
             return redirect("/dashboard/profile")
     return HttpResponseBadRequest()
 
+def validate_password_strength(password):
+    """validate password strength and return boolean value."""
 
-@login_required(login_url='/login/')
-def check_user(request):
-    if request.method == 'GET':
-        context = {}
-        if 'email' in request.GET:
-            if User.objects.filter(email=request.GET['email']).exists():
-                context['email_available'] = False
-            else:
-                context['email_available'] = True
-        elif 'username' in request.GET:
-            if User.objects.filter(username=request.GET['username']).exists():
-                context['username_available'] = False
-            else:
-                context['username_available'] = True
-
-        return JsonResponse(context)
-    return HttpResponseBadRequest()
-
-# This view handles the password reset.
-def reset(request):
-    return password_reset(request,
-                          email_template_name=
-                          'dashboard/user_management/reset_email.html',
-                          subject_template_name=
-                          'dashboard/user_management/reset_subject.txt',
-                          post_reset_redirect=reverse('user-management'))
-
-
-# This view handles the changing password to reset.
-def reset_confirm(request, uidb64=None, token=None):
-    return password_reset_confirm(request, uidb64=uidb64,
-                                  template_name=
-                                  'dashboard/user_management/reset_confirm.html',
-                                  token=token, post_reset_redirect=
-                                  reverse('success'))
-
-
-def success(request):
-    return render(request, "dashboard/user_management/success.html")
-
-
-@login_required(login_url='/login/')
-def role_default_permissions(request):
-    if request.method == 'GET':
-        role = request.GET['role']
-        permission_set = ['credit', 'graph', 'report', "smsbroadcast", "tower",
-                          "bts", "subscriber", "network",
-                          "notification", "usageevent"]
-
-        business_analyst = ['view_graph', 'view_report', 'view_bts',
-                            'view_subscriber', 'view_network']
-
-        loader = ['view_graph', 'view_report', 'view_bts', 'view_subscriber',
-                  'view_network', 'change_subscriber', 'change_network',
-                  'add_subscriber', 'add_sms', 'add_credit', 'download_graph']
-
-        partner = ['view_graph', 'view_report', 'view_bts', 'view_subscriber',
-                   'view_network', 'edit_subscriber', 'edit_network',
-                   'add_subscriber', 'add_sms', 'download_graph']
-
-        content_type = ContentType.objects.filter(app_label='endagaweb',
-                                                  model__in=
-                                                  permission_set).values_list('id', flat=True)
-        permission = Permission.objects.filter(
-            content_type__in=content_type).values_list('id', flat=True)
-        role_permission = []
-        if role == 'Business Analyst':
-            role_permission = Permission.objects.filter(
-                codename__in=business_analyst).values_list('id', flat=True)
-        elif role == 'Loader':
-            role_permission = Permission.objects.filter(
-                codename__in=loader).values_list('id', flat=True)
-        elif role == 'Partner':
-            role_permission = Permission.objects.filter(
-                codename__in=partner).values_list('id', flat=True)
-        else:
-            for i in permission:
-                role_permission.append(i)
-
-        return JsonResponse({'permissions': list(role_permission)})
-    return HttpResponseBadRequest()
-
-def validate_password_strength(value):
-    """Checks that a submitted value should match regex and return
-        boolean value
-    """
-
-    regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
-    pattern = re.compile(regex)
-    return bool(pattern.match(value))
+    length_regex = re.compile(r'.{8,}')
+    length_validate = True if (length_regex.match(password) is not None) else False
+    alphabet_regex = re.compile(r'(?=.*[a-zA-Z])')
+    aplhabet_validate = True if (alphabet_regex.match(password) is not None) else False
+    digit_regex = re.compile(r'(?=.*\d)')
+    digit_validate = True if (digit_regex.match(password) is not None) else False
+    special_charcter_validate = True if (re.search(r"[!@#$%&'()*+,-./[\\\]^_`{|}~" + r'"]', password)
+                                         is not  None) else False
+    if digit_validate and special_charcter_validate and length_validate \
+            and aplhabet_validate == True:
+        return True
+    else:
+        return False
