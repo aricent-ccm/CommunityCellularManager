@@ -20,11 +20,15 @@ import logging
 import time
 import uuid
 
+import django.utils.timezone
+import itsdangerous
+import pytz
+import stripe
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
-from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import connection
 from django.db import models
 from django.db import transaction
@@ -32,10 +36,6 @@ from django.db.models import F
 from django.db.models.signals import post_save
 from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
-import django.utils.timezone
-import itsdangerous
-import pytz
-import stripe
 
 from ccm.common import crdt, logger
 from ccm.common.currency import humanize_credits, CURRENCIES
@@ -883,6 +883,7 @@ class PendingCreditUpdate(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     amount = models.BigIntegerField()
+    valid_through = models.DateTimeField(null=True, blank=True)
     uuid = models.TextField()
 
     def __unicode__(self):
@@ -1461,12 +1462,12 @@ post_save.connect(Network.create_billing_tiers, sender=Network)
 
 
 class NetworkDenomination(models.Model):
-    """Each BTS has their own denomination bracket for rechange and validity
+    """Network has its own denomination bracket for rechange and validity
 
     Subscriber status depends on recharge under denomination bracket
     """
-    start_amount = models.PositiveIntegerField(blank=True, default=0)
-    end_amount = models.PositiveIntegerField(blank=True, default=0)
+    start_amount = models.BigIntegerField()
+    end_amount = models.BigIntegerField()
     validity_days = models.PositiveIntegerField(blank=True, default=0)
 
     # The denomination group associated with the network
