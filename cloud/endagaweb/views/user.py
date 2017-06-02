@@ -127,8 +127,9 @@ def auth_and_login(request):
                 next_url = request.POST['next']
             if (today - user_profile.last_pwd_update).days >= \
                     settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
-                text = str(user) + ' , your account will be blocked in next ' + str(
-                settings.ENDAGA['PASSWORD_EXPIRED_DAY']- (today - user_profile.last_pwd_update).days)
+                text = str(user) + ' , your account will be blocked in next ' \
+                       + str(settings.ENDAGA['PASSWORD_EXPIRED_DAY']-
+                             (today - user_profile.last_pwd_update).days)
                 messages.error(request, text)
                 return redirect(next_url)
             else:
@@ -153,7 +154,8 @@ def change_password(request):
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
     # Validate url for redirect
-    if urlparse.urlparse(request.META['HTTP_REFERER']).path != '/dashboard/profile':
+    if urlparse.urlparse(request.META['HTTP_REFERER']).path != \
+            '/dashboard/profile':
         redirect_url = '/password/change'
     else:
         redirect_url = '/dashboard/profile'
@@ -163,7 +165,8 @@ def change_password(request):
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
     if not validate_password_strength(request.POST['new_password1']):
-        text = 'Error: password must contain at least 8 characters,contains alphanumeric and one special character..'
+        text = 'Error: password must contain at least 8 characters,contains ' \
+               'alphanumeric and one special character.'
         tags = 'password  alert alert-danger'
         messages.info(request, text, extra_tags=tags)
         return redirect(redirect_url)
@@ -191,8 +194,8 @@ def change_password(request):
     text = 'Password changed successfully.'
     tags = 'password alert alert-success'
     messages.success(request, text, extra_tags=tags)
-    if urlparse.urlparse(request.META['HTTP_REFERER']
-                         ).path != '/dashboard/profile':
+    if urlparse.urlparse(request.META['HTTP_REFERER']).path != \
+            '/dashboard/profile':
         redirect_url = '/dashboard'
     return redirect(redirect_url)
 

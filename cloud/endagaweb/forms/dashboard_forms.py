@@ -420,6 +420,7 @@ class UserSearchForm(forms.Form):
 
 
 class PasswordResetRequestForm(PasswordResetForm):
+
     email = forms.CharField(label=("Email"), max_length=254)
     class Meta:
         model = User
@@ -427,23 +428,22 @@ class PasswordResetRequestForm(PasswordResetForm):
 
 
 class NetworkBalanceLimit(forms.Form):
-      """Crispy form to set Network balance limit and transaction.
-         set min_value =0.01 so that it will not accept 0 value"""
 
-      limit = forms.CharField(required=False, label="Maximum Balance Limit",
+    """Crispy form to set Network balance limit and transaction.
+    set min_value =0.01 so that it will not accept 0 value"""
+
+    limit = forms.CharField(required=False, label="Maximum Balance Limit",
                               max_length=10)
-      transaction = forms.CharField(required=False,
-                                    label="Maximum Permissible Unsuccessful Transactions",
-                                    max_length=3)
+    transaction = forms.CharField(required=False, max_length=3,
+                                  label='Maximum Permissible Unsuccessful '
+                                        'Transactions')
 
-      def __init__(self, *args, **kwargs):
-          super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
-          self.helper = FormHelper()
-          self.helper.form_id = 'id-NetworkBalanceLimitForm'
-          self.helper.form_method = 'post'
-          self.helper.form_action = '/dashboard/network/balance-limit'
-          self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
-          self.helper.add_input(Submit('submit', 'Save',))
-          self.helper.layout = Layout(
-                'limit', 'transaction',
-          )
+    def __init__(self, *args, **kwargs):
+        super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_id = 'id-NetworkBalanceLimitForm'
+        self.helper.form_method = 'post'
+        self.helper.form_action = '/dashboard/network/balance-limit'
+        self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
+        self.helper.add_input(Submit('submit', 'Save'))
+        self.helper.layout = Layout('limit', 'transaction')

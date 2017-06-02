@@ -543,8 +543,8 @@ class SubscriberAdjustCredit(ProtectedView):
             subscriber = Subscriber.objects.get(imsi=imsi,
                                                 network=network)
             # Set the response context.
-            pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
-                'date')
+            pending_updates = subscriber.pendingcreditupdate_set.all().\
+                order_by('date')
             initial_form_data = {
                 'imsi': subscriber.imsi,
             }
@@ -617,7 +617,7 @@ class SubscriberAdjustCredit(ProtectedView):
                         credit_update = PendingCreditUpdate(subscriber=sub,
                                                             uuid=msgid,
                                                             amount=amount)
-                        credit_update.valid_through=expiry_date
+                        credit_update.valid_through = expiry_date
                         credit_update.save()
                         tasks.update_credit.delay(sub.imsi, msgid)
                         return adjust_credit_redirect

@@ -458,52 +458,6 @@ class NetworkSelectView(ProtectedView):
         except models.Network.DoesNotExist:
             return http.HttpResponseBadRequest()
 
-        if request.POST.get('transaction') !="":
-            transaction_limit=request.POST.get('transaction')
-        else:
-            error_text = 'Require Max Unsuccessful Transaction  value'
-
-        if request.POST.get('limit') !="":
-            limit=request.POST.get('limit')
-
-        else:
-            error_text = 'Require Balance Limit  value'
-
-        with transaction.atomic():
-            try:
-                currency = network.subscriber_currency
-                amount = parse_credits(request.POST['limit'],
-                                       CURRENCIES[currency]).amount_raw
-                network.max_amount_limit=amount
-                network.max_failuer_Transaction=request.POST.get('transaction')
-                network.save()
-            except ValueError:
-                messages.error(request, error_text,extra_tags="alert alert-danger")
-                return redirect(urlresolvers.reverse('network_balance_limit'))
-        messages.success(request, "Network Balance Limit and Transaction updated",
-                         extra_tags="alert alert-success")
-        return redirect(urlresolvers.reverse('network_balance_limit'))
-        if not request.user.has_perm('view_network', network):
-            return http.HttpResponse('User not permitted to view this network', status=401)
-
-        user_profile.network = network
-        user_profile.save()
-        return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
-
-
-class NetworkSelectView(ProtectedView):
-    """This is a view that allows users to switch their current
-    network. They must have view_network permission on the instance
-    for this to work.
-    """
-
-    def get(self, request, network_id):
-        user_profile = models.UserProfile.objects.get(user=request.user)
-        try:
-            network = models.Network.objects.get(pk=network_id)
-        except models.Network.DoesNotExist:
-            return http.HttpResponseBadRequest()
-
         if not request.user.has_perm('view_network', network):
             return http.HttpResponse('User not permitted to view this network', status=401)
 
