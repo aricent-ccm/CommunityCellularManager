@@ -12,17 +12,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-
 from django import test
-
-
 from django.test import TestCase
-
 from endagaweb import models
 
 
 class TestBase(TestCase):
-
 
     @classmethod
     def setUpClass(cls):
@@ -33,7 +28,6 @@ class TestBase(TestCase):
         cls.user.save()
         cls.error_tag = 'password alert alert-danger error'
         cls.success_tag = 'password alert alert-success success'
-
         # Create a test client.
         cls.client = test.Client()
 
@@ -67,7 +61,6 @@ class TestBase(TestCase):
 
 class UserPasswordStrengthTests(TestBase):
     """Testing strength of new password."""
-
 
     def test_old_password(self):
         """validate invalid old password."""
