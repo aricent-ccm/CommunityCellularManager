@@ -28,6 +28,7 @@ from django.core import urlresolvers
 from django.views.generic import View
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
+from endagaweb.models import NetworkDenomination
 
 import django_tables2 as tables
 import csv
@@ -510,28 +511,30 @@ class SubscriberAdjustCredit(ProtectedView):
         try:
             subscriber = Subscriber.objects.get(imsi=imsi,
                                                 network=network)
+            # Set the response context.
+            pending_updates = subscriber.pendingcreditupdate_set.all().\
+                order_by('date')
+            initial_form_data = {
+                'imsi': subscriber.imsi,
+            }
+            context = {
+                'networks': get_objects_for_user(request.user,
+                                                 'view_network',
+                                                 klass=Network),
+                'currency': CURRENCIES[network.subscriber_currency],
+                'user_profile': user_profile,
+                'subscriber': subscriber,
+                'pending_updates': pending_updates,
+                'credit_update_form': dform.SubscriberCreditUpdateForm(
+                    initial=initial_form_data),
+            }
+            # Render template.
+            template = get_template(
+                'dashboard/subscriber_detail/adjust_credit.html')
+            html = template.render(context, request)
+            return HttpResponse(html)
         except Subscriber.DoesNotExist:
-            return HttpResponseBadRequest()
-        # Set the response context.
-        pending_updates = subscriber.pendingcreditupdate_set.all().order_by(
-            'date')
-        initial_form_data = {
-            'imsi': subscriber.imsi,
-        }
-        context = {
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
-            'currency': CURRENCIES[network.subscriber_currency],
-            'user_profile': user_profile,
-            'subscriber': subscriber,
-            'pending_updates': pending_updates,
-            'credit_update_form': dform.SubscriberCreditUpdateForm(
-                initial=initial_form_data),
-        }
-        # Render template.
-        template = get_template(
-            'dashboard/subscriber_detail/adjust_credit.html')
-        html = template.render(context, request)
-        return HttpResponse(html)
+            return dashboard_view(request)
 
     def post(self, request, imsi=None):
         """Operators can use this API to add credit to a subscriber.
@@ -553,23 +556,50 @@ class SubscriberAdjustCredit(ProtectedView):
         # Validate the input.
         if 'amount' not in request.POST:
             return HttpResponseBadRequest()
-        error_text = 'Error: credit value must be between -10M and 10M.'
+        error_text = 'Credit value must be between -10M and 10M.'
+
         try:
             currency = network.subscriber_currency
             amount = parse_credits(request.POST['amount'],
-                    CURRENCIES[currency]).amount_raw
+                                   CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
+                error_text = 'Credit value must be between -10M and 10M.'
+                raise ValueError(error_text)
+            if sub.balance + amount > network.max_account_limit:
+                error_text = 'Error : Crossed Credit Limit.'
+                raise ValueError(error_text)
+            try:
+                # Check for existing denomination range exist.
+                denom_exists = NetworkDenomination.objects.get(
+                    start_amount__lte=amount,
+                    end_amount__gte=amount,
+                    network=network)
+                # Update user validity for recharge denomination amount
+                if denom_exists.validity_days > 0:
+                    now = datetime.datetime.now(pytz.UTC)
+                    expiry_date = now + datetime.timedelta(
+                        days=denom_exists.validity_days)
+                    try:
+                        # Validation suceeded, create a PCU and start the
+                        # update credit task.
+                        msgid = str(uuid.uuid4())
+                        credit_update = PendingCreditUpdate(subscriber=sub,
+                                                            uuid=msgid,
+                                                            amount=amount)
+                        credit_update.valid_through = expiry_date
+                        credit_update.save()
+                        tasks.update_credit.delay(sub.imsi, msgid)
+                        return adjust_credit_redirect
+                    except Number.DoesNotExist:
+                        error_text = 'Subscriber has no number assigned.'
+                        raise ValueError(error_text)
+            except NetworkDenomination.DoesNotExist:
+                error_text = 'Credit value must be in denomination range.'
                 raise ValueError(error_text)
         except ValueError:
-            messages.error(request, error_text)
+            messages.error(request, error_text,
+                           extra_tags="alert alert-danger")
             return adjust_credit_redirect
-        # Validation suceeded, create a PCU and start the update credit task.
-        msgid = str(uuid.uuid4())
-        credit_update = PendingCreditUpdate(subscriber=sub, uuid=msgid,
-                                            amount=amount)
-        credit_update.save()
-        tasks.update_credit.delay(sub.imsi, msgid)
-        return adjust_credit_redirect
 
     def delete(self, request, imsi=None):
         """Handle the deletion of Pending Credit Updates."""

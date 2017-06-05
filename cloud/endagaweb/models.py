@@ -883,6 +883,7 @@ class PendingCreditUpdate(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     amount = models.BigIntegerField()
+    valid_through = models.DateTimeField(null=True, blank=True)
     uuid = models.TextField()
 
     def __unicode__(self):
@@ -978,6 +979,9 @@ class Network(models.Model):
     # Network environments let you specify things like "prod", "test", "dev",
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
+    # Added for Network Balance Limit
+    max_account_limit = models.BigIntegerField(default=10000)
+    max_failure_transaction = models.IntegerField(default=3)
 
     class Meta:
         permissions = (
