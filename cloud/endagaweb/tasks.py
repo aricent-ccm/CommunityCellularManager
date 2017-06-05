@@ -30,6 +30,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.db.models import Avg, Count
+from django.db import transaction
 import django.utils.timezone
 import requests
 
@@ -213,9 +214,23 @@ def update_credit(self, imsi, update_id):
         if request.status_code >= 200 and request.status_code < 300:
             print "update_credit SUCCESS. id=%s, imsi=%s, amount=%s. (%d)" % (
                 update_id, imsi, update.amount, request.status_code)
-            update.delete()
-            bts.mark_active()
-            bts.save()
+            with transaction.atomic():
+                expiry_date = update.valid_through
+                update.subscriber.state = 'active'
+                # Get subscriber's 1st number from some admin number.
+                num = Number.objects.filter(
+                    subscriber__imsi=update.subscriber.imsi)[0:1].get()
+                if num.valid_through is None:
+                    num.valid_through = expiry_date
+                    num.save()
+                elif expiry_date >= num.valid_through:
+                    num.valid_through = expiry_date
+                    num.save()
+                print "update_credit SUCCESS. id=%s, imsi=%s, amount=%s. (%d)" % (
+                    update_id, imsi, update.amount, request.status_code)
+                update.delete()
+                bts.mark_active()
+                bts.save()
         else:
             message = ("update_credit FAIL. id=%s, imsi=%s, (bts=%s), "
                        "amount=%s. (%d)")
