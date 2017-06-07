@@ -282,19 +282,4 @@ def update_notify_numbers(request):
             return redirect("/dashboard/profile")
     return HttpResponseBadRequest()
 
-def validate_password_strength(password):
-    """validate password strength and return boolean value."""
 
-    length_regex = re.compile(r'.{8,}')
-    length_validate = True if (length_regex.match(password) is not None) else False
-    alphabet_regex = re.compile(r'(?=.*[a-zA-Z])')
-    aplhabet_validate = True if (alphabet_regex.match(password) is not None) else False
-    digit_regex = re.compile(r'(?=.*\d)')
-    digit_validate = True if (digit_regex.match(password) is not None) else False
-    special_charcter_validate = True if (re.search(r"[!@#$%&'()*+,-./[\\\]^_`{|}~" + r'"]', password)
-                                         is not  None) else False
-    if digit_validate and special_charcter_validate and length_validate \
-            and aplhabet_validate == True:
-        return True
-    else:
-        return False

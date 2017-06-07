@@ -325,7 +325,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
 
-    {    'NAME': 'endagaweb.util.Custom_password_validators.CustomPasswortValidator',
+    {    'NAME': 'endagaweb.util.custom_password_validators.CustomPasswortValidator',
     },
 
 ]
