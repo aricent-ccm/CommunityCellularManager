@@ -576,9 +576,6 @@ class SubscriberAdjustCredit(ProtectedView):
                     network=network)
                 # Update user validity for recharge denomination amount
                 if denom_exists.validity_days > 0:
-                    now = datetime.datetime.now(pytz.UTC)
-                    expiry_date = now + datetime.timedelta(
-                        days=denom_exists.validity_days)
                     try:
                         # Validation suceeded, create a PCU and start the
                         # update credit task.
@@ -586,7 +583,6 @@ class SubscriberAdjustCredit(ProtectedView):
                         credit_update = PendingCreditUpdate(subscriber=sub,
                                                             uuid=msgid,
                                                             amount=amount)
-                        credit_update.valid_through = expiry_date
                         credit_update.save()
                         tasks.update_credit.delay(sub.imsi, msgid)
                         return adjust_credit_redirect

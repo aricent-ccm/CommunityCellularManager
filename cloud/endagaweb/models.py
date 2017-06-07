@@ -525,6 +525,7 @@ class Subscriber(models.Model):
     # When toggled, this will protect a subsriber from getting "vacuumed."  You
     # can still delete subs with the usual "deactivate" button.
     prevent_automatic_deactivation = models.BooleanField(default=False)
+    valid_through = models.DateTimeField(null=True, auto_now_add=True)
 
     @classmethod
     def update_balance(cls, imsi, other_bal):
@@ -883,7 +884,6 @@ class PendingCreditUpdate(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
     amount = models.BigIntegerField()
-    valid_through = models.DateTimeField(null=True, blank=True)
     uuid = models.TextField()
 
     def __unicode__(self):
