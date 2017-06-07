@@ -22,7 +22,7 @@ class TestBase(TestCase):
     @classmethod
     def setUpClass(cls):
         cls.username = 'testuser'
-        cls.password = 'testuser'
+        cls.password = 'testuser_abad'
         cls.user = models.User(username=cls.username, email='y@l.com')
         cls.user.set_password(cls.password)
         cls.user.save()
@@ -66,7 +66,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate invalid old password."""
         self.login()
         data = {
-            'old_password': 'testuser1',
+            'old_password': 'testuser_abads',
             'new_password1': 'Admin_123',
             'new_password2': 'Admin_123'
         }
@@ -79,7 +79,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password  must contain 8 length."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'test_12',
             'new_password2': 'test_12'
         }
@@ -92,7 +92,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password  must contain alphanumeric."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'user_abcde',
             'new_password2': 'user_abcde'
         }
@@ -105,7 +105,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password must contain alphanumeric."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': '1988@1999',
             'new_password2': '1988@1999'
         }
@@ -119,7 +119,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password must contain special character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': '1988abcd',
             'new_password2': '1988abcd'
         }
@@ -132,7 +132,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password must be minimum length of 8 character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'sinha_1',
             'new_password2': 'sinha_1'
         }
@@ -145,7 +145,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password must have alhanumeric and special character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'userA_183',
             'new_password2': 'userA_183'
         }
@@ -159,7 +159,7 @@ class UserPasswordStrengthTests(TestBase):
         redirect to /dashboard/profile."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'userA_184',
             'new_password2': 'userA_184'
         }
@@ -173,7 +173,7 @@ class UserPasswordStrengthTests(TestBase):
         redirect to /password/change."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'userA%185',
             'new_password2': 'userA%184'
         }
@@ -187,7 +187,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password with special character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': '185@auser1',
             'new_password2': '185@auser1'
         }
@@ -200,7 +200,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password with special character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': 'User*#4As',
             'new_password2': 'User*#4As'
         }
@@ -213,7 +213,7 @@ class UserPasswordStrengthTests(TestBase):
         """validate new password with special character."""
         self.login()
         data = {
-            'old_password': 'testuser',
+            'old_password': 'testuser_abad',
             'new_password1': '4as8trtaabb^',
             'new_password2': '4as8trtaabb^'
         }

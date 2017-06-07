@@ -25,7 +25,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 </style>
 <html lang="en">
 <head>
-  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <script>
 
 $(document).ready(function(){
@@ -50,8 +50,10 @@ $("#dialog").modal('show');
       <div class='modal-body'>
         {% for message in messages %}
         <p>
-          {% if message.text %} {% endif %} Hi {{ message }}
+          Hi {{ message }}
+        </p>
           {% endfor %}
+        <p>
           <strong>
             Please change your password.
           </strong>

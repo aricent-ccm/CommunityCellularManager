@@ -33,6 +33,7 @@ import re
 from guardian.shortcuts import get_objects_for_user
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb import models
+from django.core import exceptions
 
 logger = logging.getLogger('endagaweb')
 
@@ -108,7 +109,7 @@ def auth_and_login(request):
     """Handles POSTed credentials for login."""
     user = authenticate(username=request.POST['email'],
                         password=request.POST['password'])
-    if user:
+    if user is not None:
         if user.is_active:
             login(request, user)
             user = User.objects.get(username=user)
@@ -158,40 +159,39 @@ def change_password(request):
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
-    if not validate_password_strength(request.POST['new_password1']):
-        text = 'Error: password must contain at least 8 characters,contains ' \
-               'alphanumeric and one special character.'
+    try:
+        form = dform.ChangePasswordForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            new_password1 =form.clean_password1()
+            form.save()
+            request.user.set_password(new_password1)
+            user_profile = UserProfile.objects.get(user=request.user)
+            user_profile.last_pwd_update = timezone.now()
+            user_profile.save()
+            request.user.save()
+            text = 'Password changed successfully.'
+            tags = 'password alert alert-success'
+            messages.success(request, text, extra_tags=tags)
+            if urlparse.urlparse(request.META['HTTP_REFERER']
+                                 ).path != '/dashboard/profile':
+                redirect_url = '/dashboard'
+                return redirect(redirect_url)
+            else:
+                return redirect(redirect_url)
+        else:
+            """if form is invalid in scenario if conform password not match with
+            new password, so firstly validate new_password strength and raise execption
+            if password strength is success then give error Error:conform password does
+            not match by default djnago called clean_password2()."""
+
+            form.clean_password1()
+            tags = 'password alert alert-danger'
+            messages.error(request, form.error_message, extra_tags=tags)
+            return redirect(redirect_url)
+    except exceptions.ValidationError as e:
         tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
+        messages.error(request, ''.join(e.messages), extra_tags=tags)
         return redirect(redirect_url)
-    if request.POST['old_password'] == request.POST['new_password1']:
-        text = 'Error: new password must not be old password.'
-        tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
-        return  redirect(redirect_url)
-    if request.POST['new_password1'] != request.POST['new_password2']:
-        text = 'Error: new passwords do not match.'
-        tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
-        return redirect(redirect_url)
-    if request.POST['new_password1'] == '':
-        text = 'Error: new password is not valid.'
-        tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
-        return redirect(redirect_url)
-    # Everything checks out, change the password.
-    request.user.set_password(request.POST['new_password1'])
-    user_profile = UserProfile.objects.get(user=request.user)
-    user_profile.last_pwd_update = timezone.now()
-    user_profile.save()
-    request.user.save()
-    text = 'Password changed successfully.'
-    tags = 'password alert alert-success'
-    messages.success(request, text, extra_tags=tags)
-    if urlparse.urlparse(request.META['HTTP_REFERER']
-                         ).path != '/dashboard/profile':
-        redirect_url = '/dashboard'
-    return redirect(redirect_url)
 
 @login_required(login_url='/login/')
 def change_expired_password(request):
