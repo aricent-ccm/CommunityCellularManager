@@ -64,19 +64,6 @@ class TestBase(TestCase):
         self.client.get('/logout')
 
 
-class DenominationTests(TestBase):
-    """
-    We can manage subscriber balances.
-    """
-    def test_assert(self):
-        """ sample test """
-        self.assertEqual(1, 1)
-
-    def test_assert(self):
-        """ sample test """
-        self.assertEqual(1, 1)
-
-
 class DenominationUITest(TestBase):
     """Testing that we can add User in the UI."""
 

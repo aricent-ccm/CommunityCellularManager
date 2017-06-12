@@ -281,6 +281,9 @@ ENDAGA = {
     'PASSWORD_EXPIRED_DAY': 90,
     # Password Expiry Alert
     'PASSSWORD_EXPIRED_LAST_SEVEN_DAYS': 83,
+
+    # Maximum permissible validity(in days) limit for denomination
+    'MAX_VALIDITY_DAYS': 10000,
 }
 
 STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY",

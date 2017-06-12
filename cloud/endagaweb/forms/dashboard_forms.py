@@ -440,4 +440,3 @@ class NetworkBalanceLimit(forms.Form):
                                         'for maximum balance Limit.')
 
         return cleaned_data
-

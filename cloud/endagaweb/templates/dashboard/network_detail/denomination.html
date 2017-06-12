@@ -71,7 +71,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                         Start Amount <span class="aseriskField">*</span>
                                     </label>
                                     <div class="input-group col-xs-8">
-                                        <input class="form-control number" type="text" id="start_amount" name="start_amount"
+                                        <input class="form-control number" type="text" id="start_amount" name="start_amount" autocomplete="off"
                                                placeholder="Enter start amount" maxlength="10" required/>
                                     </div>
                                 </div>
@@ -83,7 +83,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                         End Amount <span class="aseriskField">*</span>
                                     </label>
                                     <div class="input-group col-xs-8">
-                                        <input class="form-control number" type="text" id="end_amount" name="end_amount"
+                                        <input class="form-control number" type="text" id="end_amount" name="end_amount" autocomplete="off"
                                                placeholder="Enter end amount" maxlength="10" required/>
                                     </div>
                                 </div>
@@ -95,7 +95,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                         Validity (days)<span class="aseriskField">*</span>
                                     </label>
                                     <div class="input-group col-xs-8">
-                                        <input class="form-control" type="text" id="validity_days" name="validity_days"
+                                        <input class="form-control" type="text" id="validity_days" name="validity_days" autocomplete="off"
                                                placeholder="Enter validity as number of days" required/>
                                     </div>
                                 </div>
@@ -148,7 +148,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 {% block js %}
 
     <script type="text/javascript"
-            src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.11.1/jquery.validate.min.js"></script>
+            src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.10.0/jquery.validate.min.js"></script>
     <script type="text/javascript">
         $(document).ready(function () {
             $('.number').keypress(function (event) {
