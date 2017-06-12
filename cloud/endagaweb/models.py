@@ -536,6 +536,7 @@ class Subscriber(models.Model):
     block_reason = models.TextField(default='No reason to block yet!',
                                     max_length=255)
     block_time = models.DateTimeField(null=True, blank=True)
+    valid_through = models.DateTimeField(null=True, auto_now_add=True)
 
     class Meta:
         default_permissions = ()
@@ -544,6 +545,7 @@ class Subscriber(models.Model):
             ('change_subscriber', 'Edit subscriber'),
             ('deactive_subscriber', 'Deactive subscriber'),
         )
+
 
     @classmethod
     def update_balance(cls, imsi, other_bal):
