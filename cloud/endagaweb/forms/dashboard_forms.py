@@ -391,3 +391,38 @@ class SelectTowerForm(forms.Form):
         self.helper.form_action = '/dashboard/staff/tower-monitoring'
         self.helper.add_input(Submit('submit', 'Select'))
         self.helper.layout = Layout('tower')
+
+class NetworkBalanceLimit(forms.Form):
+
+    """Crispy form to set Network balance limit and transaction.
+    set min_value =0.01 so that it will not accept 0 value"""
+
+    max_balance = forms.CharField(required=False, label="Maximum Balance Limit",
+                                  max_length=10)
+    max_unsuccessful_transaction = forms.CharField(required=False, max_length=3,
+                                                   label='Maximum Permissible Unsuccessful '
+                                        'Transactions')
+
+    def __init__(self, *args, **kwargs):
+        super(NetworkBalanceLimit, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_id = 'id-NetworkBalanceLimitForm'
+        self.helper.form_method = 'post'
+        self.helper.form_action = '/dashboard/network/balance-limit'
+        self.helper.form_class = 'col-xs-12 col-sm-8 col-md-12 col-xl-8'
+        self.helper.add_input(Submit('submit', 'Save'))
+        self.helper.layout = Layout('max_balance', 'max_unsuccessful_transaction')
+
+    def clean_network_balance(self):
+        cleaned_data = super(NetworkBalanceLimit, self).clean()
+        max_balance = self.cleaned_data.get('max_balance', None)
+        max_unsuccessful_transaction = self.cleaned_data.\
+            get('max_unsuccessful_transaction', None)
+        if  max_balance == "" and max_unsuccessful_transaction == "":
+            raise forms.ValidationError('Error : please provide value.')
+        if max_unsuccessful_transaction == "" and float(max_balance) <= 0:
+            raise forms.ValidationError('Error : enter positive and non-zero value ' \
+                                        'for maximum balance Limit.')
+
+        return cleaned_data
+
