@@ -24,6 +24,7 @@ from django.db.models.functions import Coalesce
 from ccm.common.currency import CURRENCIES
 from endagaweb import models
 from endagaweb.templatetags import apptags
+from django.contrib.auth import password_validation
 
 
 class UpdateContactForm(forms.Form):
@@ -152,20 +153,12 @@ class SubscriberSearchForm(forms.Form):
         super(SubscriberSearchForm, self).__init__(*args, **kwargs)
 
 
+
 class ChangePasswordForm(PasswordChangeForm):
     """Change password form visible on user profile page."""
-    """Updated to show password policy text. """
-    old_password = forms.CharField(required=True, label='Old Password',
-                                   widget=forms.PasswordInput(attrs={
-                                       'title': 'Enter Old Password'}),
-                         )
-    new_password1 = forms.CharField(required=True, label='New Password',
-                                    widget=forms.PasswordInput(attrs={
-                                        'title': 'Password must contain at least 8 characters,contains '
-                                                 'alphanumeric and one special character.'}),)
-    new_password2 = forms.CharField(required=True, label='Confirm Password',
-                                    widget=forms.PasswordInput(attrs={
-                                        'title': 'Confirm Password'}),)
+    """Updated for password validation. """
+
+    error_message = ''
 
     def __init__(self, *args, **kwargs):
         super(ChangePasswordForm, self).__init__(*args, **kwargs)
@@ -174,7 +167,26 @@ class ChangePasswordForm(PasswordChangeForm):
         self.helper.form_method = 'post'
         self.helper.form_action = '/account/password/change'
         self.helper.form_class = 'profile-form'
+        self.error_message = ''
         self.helper.add_input(Submit('submit', 'Save'))
+
+    def clean_password1(self):
+        old_password = self.cleaned_data.get("old_password")
+        new_password1 = self.cleaned_data.get("new_password1")
+        if new_password1 and old_password and old_password == new_password1:
+            self.error_message = 'Error: new password must not be old password.'
+            raise forms.ValidationError(self.error_message)
+        password_validation.validate_password(new_password1)
+        return new_password1
+
+    def clean_new_password2(self):
+        password1 = self.cleaned_data.get('new_password1')
+        password2 = self.cleaned_data.get('new_password2')
+        if password1 and password2:
+            if password1 != password2:
+                self.error_message = 'Error:conform password does not match.'
+                raise forms.ValidationError(self.error_message)
+        return password2
 
 
 class NotifyEmailsForm(forms.Form):

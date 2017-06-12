@@ -39,6 +39,7 @@ from endagaweb.forms import dashboard_forms as dform
 from django.utils import timezone
 import urlparse
 import re
+from django.core import exceptions
 
 logger = logging.getLogger('endagaweb')
 
@@ -116,7 +117,7 @@ def auth_and_login(request):
     """Handles POSTed credentials for login."""
     user = authenticate(username=request.POST['email'],
                         password=request.POST['password'])
-    if user:
+    if user is not None:
         if user.is_active:
             login(request, user)
             user = User.objects.get(username=user)
@@ -126,10 +127,11 @@ def auth_and_login(request):
             if 'next' in request.POST and request.POST['next']:
                 next_url = request.POST['next']
             if (today - user_profile.last_pwd_update).days >= \
-                    settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS'] :
-                text = str(user) + ' , your account will be blocked in next ' \
-                       + str(settings.ENDAGA['PASSWORD_EXPIRED_DAY']-
-                             (today - user_profile.last_pwd_update).days)
+                    settings.ENDAGA['PASSSWORD_EXPIRED_LAST_SEVEN_DAYS']:
+                password_expired_day_left = str(settings.ENDAGA['PASSWORD_EXPIRED_DAY']
+                                                - (today - user_profile.last_pwd_update).days)
+                text = '%s, your account will be blocked in next  %s days unless' \
+                       ' change your password' %(user, password_expired_day_left)
                 messages.error(request, text)
                 return redirect(next_url)
             else:
@@ -144,6 +146,7 @@ def auth_and_login(request):
         messages.error(request, text)
         return redirect('/login/')
 
+
 @login_required(login_url='/login/')
 def change_password(request):
     """Handles password change request data."""
@@ -154,8 +157,8 @@ def change_password(request):
     if not all([param in request.POST for param in required_params]):
         return HttpResponseBadRequest()
     # Validate url for redirect
-    if urlparse.urlparse(request.META['HTTP_REFERER']).path != \
-            '/dashboard/profile':
+    if urlparse.urlparse(request.META['HTTP_REFERER']
+                         ).path != '/dashboard/profile':
         redirect_url = '/password/change'
     else:
         redirect_url = '/dashboard/profile'
@@ -164,40 +167,39 @@ def change_password(request):
         tags = 'password alert alert-danger'
         messages.error(request, text, extra_tags=tags)
         return redirect(redirect_url)
-    if not validate_password_strength(request.POST['new_password1']):
-        text = 'Error: password must contain at least 8 characters,contains ' \
-               'alphanumeric and one special character.'
-        tags = 'password  alert alert-danger'
-        messages.info(request, text, extra_tags=tags)
-        return redirect(redirect_url)
-    if request.POST['old_password'] == request.POST['new_password1']:
-        text = 'Error: new password must not be old password.'
+    try:
+        form = dform.ChangePasswordForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            new_password1 =form.clean_password1()
+            form.save()
+            request.user.set_password(new_password1)
+            user_profile = UserProfile.objects.get(user=request.user)
+            user_profile.last_pwd_update = timezone.now()
+            user_profile.save()
+            request.user.save()
+            text = 'Password changed successfully.'
+            tags = 'password alert alert-success'
+            messages.success(request, text, extra_tags=tags)
+            if urlparse.urlparse(request.META['HTTP_REFERER']
+                                 ).path != '/dashboard/profile':
+                redirect_url = '/dashboard'
+                return redirect(redirect_url)
+            else:
+                return redirect(redirect_url)
+        else:
+            """if form is invalid in scenario if conform password not match with
+            new password, so firstly validate new_password strength and raise execption
+            if password strength is success then give error Error:conform password does
+            not match by default djnago called clean_password2()."""
+
+            form.clean_password1()
+            tags = 'password alert alert-danger'
+            messages.error(request, form.error_message, extra_tags=tags)
+            return redirect(redirect_url)
+    except exceptions.ValidationError as e:
         tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
-        return  redirect(redirect_url)
-    if request.POST['new_password1'] != request.POST['new_password2']:
-        text = 'Error: new passwords do not match.'
-        tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
+        messages.error(request, ''.join(e.messages), extra_tags=tags)
         return redirect(redirect_url)
-    if request.POST['new_password1'] == '':
-        text = 'Error: new password is not valid.'
-        tags = 'password alert alert-danger'
-        messages.error(request, text, extra_tags=tags)
-        return redirect(redirect_url)
-    # Everything checks out, change the password.
-    request.user.set_password(request.POST['new_password1'])
-    user_profile = UserProfile.objects.get(user=request.user)
-    user_profile.last_pwd_update = timezone.now()
-    user_profile.save()
-    request.user.save()
-    text = 'Password changed successfully.'
-    tags = 'password alert alert-success'
-    messages.success(request, text, extra_tags=tags)
-    if urlparse.urlparse(request.META['HTTP_REFERER']).path != \
-            '/dashboard/profile':
-        redirect_url = '/dashboard'
-    return redirect(redirect_url)
 
 @login_required(login_url='/login/')
 def change_expired_password(request):
@@ -375,12 +377,3 @@ def role_default_permissions(request):
         return JsonResponse({'permissions': list(role_permission)})
     return HttpResponseBadRequest()
 
-def validate_password_strength(value):
-    """Checks that a submitted value should match regex and return
-        boolean value
-    """
-
-    value = value.lower()
-    regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
-    pattern = re.compile(regex)
-    return bool(pattern.match(value))

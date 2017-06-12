@@ -329,3 +329,11 @@ SESSION_COOKIE_SECURE = True
 
 # Security middleware settings
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Password validation
+AUTH_PASSWORD_VALIDATORS = [
+
+    {    'NAME': 'endagaweb.util.custom_password_validators.CustomPasswortValidator',
+    },
+
+]

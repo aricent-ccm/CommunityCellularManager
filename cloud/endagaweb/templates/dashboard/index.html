@@ -50,10 +50,12 @@ $("#dialog").modal('show');
       <div class='modal-body'>
         {% for message in messages %}
         <p>
-          {% if message.text %} {% endif %} Hi {{ message }} Days.
+          Hi {{ message }}
+        </p>
           {% endfor %}
+        <p>
           <strong>
-            Please change your password .
+            Please change your password.
           </strong>
         </p>
       </div>
