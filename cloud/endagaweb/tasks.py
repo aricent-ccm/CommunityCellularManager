@@ -46,7 +46,7 @@ from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat, UserProfile
 from endagaweb.models import NetworkDenomination
 from endagaweb.ic_providers.nexmo import NexmoProvider
-
+from ccm.common import crdt
 
 @app.task(bind=True)
 def usageevents_to_sftp(self):
@@ -611,3 +611,19 @@ def unblock_blocked_subscribers(self):
         [subscriber.imsi for subscriber in subscribers], )
     subscribers.update(is_blocked=False, block_time=None,
                        block_reason='No reason to block yet!')
+
+@app.task(bind=True)
+def zero_out_subscribers_balance(self):
+    """Subscriber balance zero outs when validity expires.
+
+    This runs this as a periodic task managed by celerybeat.
+    """
+    today = django.utils.timezone.now()
+    subscribers = Subscriber.objects.filter(
+        valid_through__lte=today)
+    if not subscribers:
+        return  # Do nothing
+    credit_balance = crdt.PNCounter("default").serialize()
+    print "Validity expired for Susbcribers %s setting balance to 0" % (
+        [subscriber.imsi for subscriber in subscribers],)
+    subscribers.update(crdt_balance=credit_balance)
