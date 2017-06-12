@@ -517,7 +517,7 @@ class Subscriber(models.Model):
     imsi = models.CharField(max_length=50, unique=True)
     name = models.TextField()
     crdt_balance = models.TextField(default=crdt.PNCounter("default").serialize())
-    state = models.CharField(max_length=10)
+    state = models.CharField(max_length=15)
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
     # Time of the last received UsageEvent that is in OUTBOUND_ACTIVITIES.  We
@@ -943,7 +943,8 @@ class Network(models.Model):
     # Whether or not to automatically delete inactive subscribers, and
     # associated parameters.
     sub_vacuum_enabled = models.BooleanField(default=False)
-    sub_vacuum_inactive_days = models.IntegerField(default=180)
+    sub_vacuum_inactive_days = models.PositiveIntegerField(default=180)
+    sub_vacuum_grace_days = models.PositiveIntegerField(default=30)
 
     # csv of endpoints to notify for downtime
     notify_emails = models.TextField(blank=True, default='')
