@@ -10,6 +10,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import time
 from datetime import datetime
+from math import ceil
 from operator import itemgetter
 
 import pytz
@@ -44,7 +45,6 @@ TIMESERIES_STAT_KEYS = [
 ]
 
 
-from math import ceil
 class StatsClientBase(object):
     """The base Stats client.
 
