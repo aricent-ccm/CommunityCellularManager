@@ -47,6 +47,7 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
       timezoneOffset: 0,
       tooltipUnits: '',
       chartType: 'line-chart',
+      reportView: 'list'
     }
   },
 
@@ -91,13 +92,19 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
   handleViewClick: function(text) {
     // Update only if the startTime has actually changed.
     if (this.state.activeView != text) {
+
       this.setState({
         startTimeEpoch: this.state.startTimeEpoch,
         endTimeEpoch: this.props.currentTimeEpoch,
         isLoading: true,
         activeView: text,
       });
-      this.handleButtonClick();
+      var interval = this.props.defaultButtonText;
+      setTimeout(function(){
+        //this.handleButtonClick(interval);
+        this.forceUpdate()
+      }.bind(this), 1000);
+
     }
   },
 
@@ -201,7 +208,8 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
       'aggregation': this.props.aggregation,
       'extras': this.props.extras,
       'dynamic-stat': this.props.dynamicStat,
-      'topup-percent': this.props.topupPercent
+      'topup-percent': this.props.topupPercent,
+      'report-view': this.props.reportView
     };
     var endpoint = this.props.endpoint + this.props.level;
     $.get(endpoint, queryParams, function(data) {
@@ -263,6 +271,7 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
           endTimeEpoch = {this.props.endTimeEpoch}
           statsType = {this.props.statTypes}
           reporttype = {this.props.title}
+          activeView = {this.props.activeView}
           onButtonClick={this.handleDownloadClick} />
         <span className='spacer'></span>
         <LoadingText
@@ -488,6 +497,7 @@ var TimeseriesChart = React.createClass({
       className.push('flat');
     }
     if(this.props.activeView == 'list') {
+      $('#'+this.props.chartID + "-download").hide();
       return (
         <div className={className.join(' ')}>
           {flatLineOverlay}
@@ -496,6 +506,7 @@ var TimeseriesChart = React.createClass({
       );
     } 
     else {
+      $('#'+this.props.chartID + "-download").show();
       return (
         <div className={className.join(' ')}>
           {flatLineOverlay}
@@ -675,6 +686,7 @@ var DownloadButton = React.createClass({
       defaultButtonText: 'week',
       statsType:'',
       onButtonClick: null,
+      activeView:'graph'
     }
   },
   componentWillMount() {
@@ -687,6 +699,7 @@ var DownloadButton = React.createClass({
     var canvas = document.querySelector('canvas');
 
     btn.addEventListener('click', function () {
+
       var width = $("#"+domTargetId).width();
       var height = $("#"+domTargetId).height();
 
@@ -775,13 +788,13 @@ var ViewButton = React.createClass({
     }
     if(this.props.buttonText == 'graph') {
       return (
-        <a style={inlineStyles} onClick={this.onThisClick.bind(this, this.props.buttonText)}  title="Graphical">
+        <a style={inlineStyles} onClick={this.onThisClick.bind(this, this.props.buttonText)}  title="Graphical view">
           <i className='fa fa-lg fa-area-chart' aria-hidden="true"></i>
         </a>
       );
     } else {
       return (
-        <a style={inlineStyles} onClick={this.onThisClick.bind(this, this.props.buttonText)}  title="Tabular">
+        <a style={inlineStyles} onClick={this.onThisClick.bind(this, this.props.buttonText)}  title="Table view">
           <i className='fa fa-lg fa-list-ul' aria-hidden="true"></i>
         </a>
       );

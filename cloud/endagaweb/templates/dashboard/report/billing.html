@@ -28,8 +28,16 @@ of patent rights can be found in the PATENTS file in the same directory.
   .nv-label, .nv-legend-text {
     text-transform: capitalize;
   }
-  td {
+  .display td {
     text-align: center;
+  }
+  .display td:nth-child(1) {
+    background-color: #eee;
+    font-weight: bold;
+  }
+  .display td:nth-child(2) {
+    background-color: #eee;
+    font-weight: bold;
   }
 </style>
 
@@ -39,6 +47,7 @@ of patent rights can be found in the PATENTS file in the same directory.
     {% include "dashboard/report/header.html" with header='Billing'  %}
 
     <div class='row'>
+
         {% include "dashboard/report/nav.html" with active_tab='billing_reports' %}
         <div class='content col-xs-12 col-sm-10 col-md-10'>
             {% include "dashboard/report/filter.html" with action_url='/dashboard/reports/billing' %}
@@ -99,6 +108,9 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>{% else %}
                 <p>There is no network activity to display.</p>
             {% endif %}
+            <div class="row">
+                {% include 'dashboard/timezone-notice.html' %}
+            </div>
 
         </div> <!-- /.col-md-4 -->
     </div>
@@ -139,6 +151,7 @@ of patent rights can be found in the PATENTS file in the same directory.
       timezoneOffset={timezoneOffset}
       chartType='pie-chart'
       tooltipUnits='s of'
+      reportView='summary'
     />,
     document.getElementById('call-usage-chart')
   );
@@ -157,6 +170,7 @@ of patent rights can be found in the PATENTS file in the same directory.
       timezoneOffset={timezoneOffset}
       chartType='pie-chart'
       tooltipUnits='s of'
+      reportView='summary'
     />,
     document.getElementById('sms-usage-chart')
   );
