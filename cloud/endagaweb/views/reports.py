@@ -200,12 +200,10 @@ class BillingReportView(ProtectedView):
             if 'filter' not in request.GET:
                 # Reset filtering params.
                 request.session['level'] = 'network'
-                # TODO(Piyush/Shiv): Need to fix this subscriber report
                 if self.url_namespace == 'subscriber-report':
-                    request.session['level'] = ''
+                    request.session['level'] = 'network'
                 request.session['level_id'] = network.id
                 request.session['reports'] = report_list
-                request.session['topup_percent'] = 100
         else:
             return HttpResponseBadRequest()
 
@@ -231,15 +229,15 @@ class BillingReportView(ProtectedView):
                 str(denom[0])
                 + '-' +
                 str(denom[1]))
-
-
         timezone_offset = pytz.timezone(user_profile.timezone).utcoffset(
             datetime.datetime.now()).total_seconds()
         level = request.session['level']
         level_id = int(request.session['level_id'])
         reports = request.session['reports']
-        topup_percent = float(request.session['topup_percent'])
-
+        try:
+            topup_percent = float(request.session['topup_percent'])
+        except KeyError:
+            topup_percent = 100
         towers = models.BTS.objects.filter(
             network=user_profile.network).values('nickname', 'uuid', 'id')
         network_has_activity = UsageEvent.objects.filter(

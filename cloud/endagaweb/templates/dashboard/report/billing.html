@@ -94,8 +94,9 @@ of patent rights can be found in the PATENTS file in the same directory.
               </div>
             </div>
             {% endif %}
-
-            {% else %}
+            <div class="row">
+                {% include 'dashboard/timezone-notice.html' %}
+            </div>{% else %}
                 <p>There is no network activity to display.</p>
             {% endif %}
 
@@ -165,7 +166,7 @@ of patent rights can be found in the PATENTS file in the same directory.
     <TimeseriesChartWithButtonsAndDatePickers
       title='Call and SMS Billing Report'
       chartID='call-sms-chart'
-      statTypes='local_call,outside_call,local_sms,outside_sms'
+      statTypes='local_sms,outside_sms,local_call,outside_call'
       level='{{ level }}'
       levelID='{{ level_id }}'
       aggregation='transaction_sum'
@@ -174,6 +175,7 @@ of patent rights can be found in the PATENTS file in the same directory.
       timezoneOffset={timezoneOffset}
       chartType='pie-chart'
       tooltipUnits='s of'
+      reportView='summary'
     />,
     document.getElementById('call-sms-usage-chart')
   );
@@ -277,7 +279,7 @@ of patent rights can be found in the PATENTS file in the same directory.
   />,
   document.getElementById('top-up-subscriber-chart')
 );
-  {% endif %}
+ {% endif %}
 </script>
 <script type="text/javascript">
 function setloading() {

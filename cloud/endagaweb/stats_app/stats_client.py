@@ -157,7 +157,6 @@ class StatsClientBase(object):
             result = models.UsageEvent.objects.filter(filters).values_list(
                 'subscriber_id', flat=True).distinct()
             return list(result)
-
         # Create the queryset itself.
         queryset = objects.filter(filters)
         # Use qsstats to aggregate the queryset data on an interval.

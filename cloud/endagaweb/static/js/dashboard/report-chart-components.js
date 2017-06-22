@@ -312,7 +312,7 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
   var tableData = [];
 
   for (var index in data) {
-    var newSeries = { 'key': data[index]['key'] };
+    var newSeries = { 'key': data[index]['key'].replace('_'," ") };
     var newValues = [];
     if( typeof(data[index]['values']) === 'object'){
       for (var series_index in data[index]['values']) {
@@ -325,14 +325,17 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
         newValues.push(newValue);
         changeAmount.push(newValue[1])
       }
-      // Get sum of the total charges
+      // Get sum of the total changes
+      console.log(newSeries);
+      console.log(changeAmount);
       var sumAmount = changeAmount.reduce(add, 0);
       // sum can be of all negative values
       if ( sumAmount < 0 ){
-      newSeries['total'] = (sumAmount * -1);
+      newSeries['total'] = (sumAmount * -0.00001);
       }
       else{
-      newSeries['total'] = (sumAmount);
+      // Convert by 100000
+      newSeries['total'] = (sumAmount * 0.00001);
       }
       newSeries['values'] = newValues;
     } else {
@@ -361,7 +364,7 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
   nv.addGraph(function() {
     if(chartType == 'pie-chart') {
         var chart = nv.models.pieChart()
-            .x(function(d) { return d.key.replace('_'," "); })
+            .x(function(d) { return d.key; })
             .y(function(d) { return d.total; })
             .showLabels(true)
             .labelType("percent");
