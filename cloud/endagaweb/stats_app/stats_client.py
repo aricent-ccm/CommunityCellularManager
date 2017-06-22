@@ -44,7 +44,7 @@ TIMESERIES_STAT_KEYS = [
 ]
 
 
-
+from math import ceil
 class StatsClientBase(object):
     """The base Stats client.
 
@@ -182,7 +182,7 @@ class StatsClientBase(object):
                 for query in queryset_stats.qs:
                     subscribers[query.subscriber_imsi] += (query.change * -1)
                 top_count_of_subscribers = (len(subscribers) * percentage)
-                top_imsis = int(round(top_count_of_subscribers))
+                top_imsis = int(ceil(top_count_of_subscribers))
                 # Get top percentage of subscribers for TOP UP
                 top_subscribers = list(dict(
                     sorted(subscribers.iteritems(), key=itemgetter(1),
