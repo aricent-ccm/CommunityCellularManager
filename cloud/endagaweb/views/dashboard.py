@@ -45,6 +45,7 @@ from endagaweb.util.currency import cents2mc
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb import tasks
 from endagaweb.views import django_tables
+from endagaweb.stats_app import stats_client
 
 class ProtectedView(View):
     """ A class-based view that requires a login. """
@@ -910,3 +911,386 @@ class ActivityView(ProtectedView):
 
                 res_events |= events
             return res_events
+
+
+class CallReportView(ProtectedView):
+    """View reports on basis of Network or tower level."""
+
+    def get(self, request, *args, **kwargs):
+        return self._handle_request(request)
+
+    def post(self, request, *args, **kwargs):
+        return self._handle_request(request)
+
+    def _handle_request(self, request):
+        """Process request.
+
+        We want filters to persist even when someone changes pages without
+        re-submitting the form. Page changes will always come over a GET
+        request, not a POST.
+         - If it's a GET, we should try to pull settings from the session.
+         - If it's a POST, we should replace whatever is in the session.
+         - If it's a GET with no page, we should blank out the session.
+        """
+        # Process parameters.
+        # We want filters to persist even when someone changes pages without
+        # re-submitting the form. Page changes will always come over a GET
+        # request, not a POST.
+        # - If it's a GET, we should try to pull settings from the session.
+        # - If it's a POST, we should replace whatever is in the session.
+        # - If it's a GET with no page variable, we should blank out the
+        #   session.
+        print "request.method"
+        print request
+        print request.POST
+        print "=================="
+        if request.method == "POST":
+            request.session['level_id'] = request.POST.get('level_id', None)
+            request.session['level'] = request.POST.get('level', None)
+            # We always just do a redirect to GET. We include page reference
+            # to retain the search parameters in the session.
+            return redirect(urlresolvers.reverse('call-report') + "?filter=1")
+
+        elif request.method == "GET":
+            if 'filter' not in request.GET:
+                # Reset filtering params.
+                request.session['level_id'] = None
+                request.session['level'] = None
+        else:
+            return HttpResponseBadRequest()
+
+        print "request.session = ", request.session
+
+        user_profile = UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        timezone_offset = pytz.timezone(user_profile.timezone).utcoffset(
+            datetime.datetime.now()).total_seconds()
+        # Read filtering params out of the session.
+        level = request.session['level']
+        level_id = request.session['level_id']
+
+        towers = models.BTS.objects.filter(network=user_profile.network).values('nickname','uuid','id')
+
+        print "towers = ", towers
+        # Determine if there has been any activity on the network (if not, we won't
+        # show the graphs).
+        network_has_activity = UsageEvent.objects.filter(
+            network=network).exists()
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
+            'towers': towers,
+            'level': level,
+            'level_id': level_id,
+            'user_profile': user_profile,
+            'network_id': network.id,
+            'current_time_epoch': int(time.time()),
+            'timezone_offset': timezone_offset,
+            'network_has_activity': network_has_activity,
+            'report_summary': 'Call and SMS'
+        }
+        template = get_template("dashboard/report/call-report.html")
+        html = template.render(context, request)
+        return HttpResponse(html)
+
+
+class SubscriberReportView(ProtectedView):
+    """View reports on basis of Network or tower level."""
+
+    def get(self, request):
+        user_profile = UserProfile.objects.get(user=request.user)
+        try:
+            towers = models.BTS.objects.filter(network=user_profile.network)
+        except models.BTS.DoesNotExist:
+            tower =None
+        network = user_profile.network
+        timezone_offset = pytz.timezone(user_profile.timezone).utcoffset(
+            datetime.datetime.now()).total_seconds()
+        network_has_activity = UsageEvent.objects.filter(
+            network=network).exists()
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
+            'user_profile': user_profile,
+            'network_id': network.id,
+            'towers':towers,
+            'current_time_epoch': int(time.time()),
+            'timezone_offset': timezone_offset,
+            'network_has_activity': network_has_activity,
+            'report_summary': 'Subscribers'
+        }
+        template = get_template("dashboard/report/subscriber-report.html")
+        html = template.render(context, request)
+        return HttpResponse(html)
+
+
+class BillingReportView(ProtectedView):
+    """View reports on basis of Network or tower level."""
+
+    def get(self, request):
+        user_profile = UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        timezone_offset = pytz.timezone(user_profile.timezone).utcoffset(
+            datetime.datetime.now()).total_seconds()
+        # Determine if there has been any activity on the network (if not, we won't
+        # show the graphs).
+        network_has_activity = UsageEvent.objects.filter(
+            network=network).exists()
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
+            'user_profile': user_profile,
+            'network_id': network.id,
+            'current_time_epoch': int(time.time()),
+            'timezone_offset': timezone_offset,
+            'network_has_activity': network_has_activity,
+            'report_summary': 'Billing'
+        }
+        template = get_template("dashboard/report/bill-report.html")
+        html = template.render(context, request)
+        return HttpResponse(html)
+
+
+class HealthReportView(ProtectedView):
+    """View reports on basis of Network or tower level."""
+
+    def get(self, request):
+        user_profile = UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        timezone_offset = pytz.timezone(user_profile.timezone).utcoffset(
+            datetime.datetime.now()).total_seconds()
+        # Determine if there has been any activity on the network (if not, we won't
+        # show the graphs).
+        network_has_activity = UsageEvent.objects.filter(
+            network=network).exists()
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
+            'user_profile': user_profile,
+            'network_id': network.id,
+            'current_time_epoch': int(time.time()),
+            'timezone_offset': timezone_offset,
+            'network_has_activity': network_has_activity,
+            'report_summary': 'Health'
+        }
+        template = get_template("dashboard/report/call-report.html")
+        html = template.render(context, request)
+        return HttpResponse(html)
+
+
+class ReportGraphDownload(ProtectedView):
+    """downoad csv on basis of reports"""
+
+    def get(self, request):
+        user_profile = UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        currency = CURRENCIES[network.subscriber_currency]
+        request.session['start_date'] = request.GET.get(
+            'start-time-epoch',
+            0)
+        request.session['end_date'] = request.GET.get('end-time-epoch',
+                                                      0)
+        request.session['stats_type'] = request.GET.get('stat-types',
+                                                        None)
+        request.session['level'] = request.GET.get('level',None)
+        request.session['level_id'] =  request.GET.get('level_id',0 )
+        request.session['report-type'] = request.GET.get('report-type')
+        start_date = request.session['start_date']
+        end_date = request.session['end_date']
+        stats_type = request.session['stats_type']
+        stat_types = stats_type.split(',')
+        level = request.session['level']
+        level_id = request.session['level_id']
+        start_time = datetime.datetime.fromtimestamp(float(start_date)).\
+            strftime('%Y-%m-%d %H:%M:%S.%f')
+        end_time = datetime.datetime.fromtimestamp(float(end_date)).\
+            strftime('%Y-%m-%d %H:%M:%S.%f')
+        report_type = request.session['report-type']
+        if(report_type == 'Subscriber Status'):
+            subscriber_events = self._get_subscriber_report(level, level_id,
+                                      start_time, end_time, stat_types)
+            headers = [
+                'Subscriber IMSI',
+                'Subscriber Name',
+                'Credit Balance(%s' % (currency,),
+                'Type of State',
+                'Last Active',
+                'Last Outbound Activity',
+                'Last Camped',
+                'Automatic Deactivation',
+                'Valid Duration',
+                'Subscriber Role',
+
+            ]
+            response = HttpResponse(content_type='text/csv')
+            writer = csv.writer(response)
+            writer.writerow(headers)
+            timezone = pytz.timezone(user_profile.timezone)
+            for e in subscriber_events[:7000]:
+                subscriber = e.imsi
+                if e.imsi.startswith('IMSI'):
+                    subscriber = e.imsi[4:]
+                writer.writerow([
+                    subscriber,
+                    e.name,
+                    humanize_credits(e.balance, currency=currency).amount_str(),
+                    e.state,
+                    django_utils_timezone.localtime(e.last_active, timezone)
+                        .strftime("%Y-%m-%d at %I:%M%p")
+                    if e.last_active else '' ,
+                    django_utils_timezone.localtime(e.last_outbound_activity,
+                                                    timezone)
+                        .strftime("%Y-%m-%d at %I:%M%p")
+                    if e.last_outbound_activity else '',
+                    django_utils_timezone.localtime(e.last_camped, timezone)
+                        .strftime("%Y-%m-%d at %I:%M%p")
+                    if e.last_camped else '',
+                    e.prevent_automatic_deactivation,
+                    e.valid_through,
+                    e.role,
+                ])
+            return response
+        if(report_type == 'BTS Status'):
+            bts_events = self._get_bts_health_report(level,level_id,
+                                                     start_time, end_time,
+                                                     stat_types)
+            headers = [
+                'BTS Identifier',
+                'BTS Name',
+                'Day',
+                'Time',
+                'Time Zone',
+                'Status',
+             ]
+            response = HttpResponse(content_type='text/csv')
+            writer = csv.writer(response)
+            writer.writerow(headers)
+            timezone = pytz.timezone(user_profile.timezone)
+            for e in bts_events[:7000]:
+                tz_date = django_utils_timezone.localtime(e.date, timezone)
+                writer.writerow([
+                    e.bts.uuid,
+                    e.bts.nickname if e.bts else "<deleted BTS>",
+                    tz_date.date().strftime("%m-%d-%Y"),
+                    tz_date.time().strftime("%I:%M:%S %p"),
+                    timezone,
+                    e.type,
+
+                ])
+            return response
+        else:
+            events = self._get_usage_event_values(report_type, level, level_id,
+                                                  user_profile, start_time,
+                                                  end_time, stat_types)
+
+            headers = [
+                'Transaction ID',
+                'Day',
+                'Time',
+                'Time Zone',
+                'Subscriber IMSI',
+                'BTS Identifier',
+                'BTS Name',
+                'Type of Event',
+                'Description',
+                'From Number',
+                'To Number',
+                'Billable Call Duration (sec)',
+                'Total Call Duration (sec)',
+                'Tariff (%s)' % (currency,),
+                'Cost (%s)' % (currency,),
+                'Prior Balance (%s)' % (currency,),
+                'Final Balance (%s)' % (currency,),
+                'Bytes Uploaded',
+                'Bytes Downloaded',
+            ]
+            response = HttpResponse(content_type='text/csv')
+            writer = csv.writer(response)
+            writer.writerow(headers)
+            timezone = pytz.timezone(user_profile.timezone)
+            for e in events[:7000]:
+                subscriber = e.subscriber_imsi
+                if e.subscriber_imsi.startswith('IMSI'):
+                    subscriber = e.subscriber_imsi[4:]
+
+                tz_date = django_utils_timezone.localtime(e.date, timezone)
+
+                writer.writerow([
+                    e.transaction_id,
+                    tz_date.date().strftime("%m-%d-%Y"),
+                    tz_date.time().strftime("%I:%M:%S %p"),
+                    timezone,
+                    subscriber,
+                    e.bts_uuid,
+                    e.bts.nickname if e.bts else "<deleted BTS>",
+                    e.kind,
+                    e.reason,
+                    e.from_number,
+                    e.to_number,
+                    e.billsec,
+                    e.call_duration,
+                    humanize_credits(e.tariff,
+                                 currency=currency).amount_str()
+                    if e.tariff else None,
+                    humanize_credits(e.change,
+                                 currency=currency).amount_str()
+                    if e.change else None,
+                    humanize_credits(e.oldamt,
+                                 currency=currency).amount_str()
+                    if e.oldamt else None,
+                    humanize_credits(e.newamt,
+                                 currency=currency).amount_str()
+                    if e.newamt else None,
+                    e.uploaded_bytes,
+                    e.downloaded_bytes,
+                ])
+            return response
+
+    def _get_usage_event_values(self, report_type, level, level_id, user_profile,
+                                start_date=None, end_date=None,
+                                stats_type=None):
+        network = user_profile.network
+        events = UsageEvent.objects.filter(
+            network=network).order_by('-date')
+        if start_date or end_date:
+            events = events.filter(
+                date__range=(str(start_date), str(end_date)))
+        if stats_type:
+            qs = ([Q(kind__icontains=s)for s in stats_type] )
+            if report_type == 'Subscriber Activity':
+                qs.append((Q(oldamt__gt=0,newamt__lte=0)))
+            events = events.filter(reduce(operator.or_, qs))
+        if level == 'tower':
+            events = events.filter(bts__id=level_id)
+        if level == 'network':
+            events = events.filter(network__id=level_id)
+
+        return events
+
+    def _get_subscriber_report(self, level, level_id, start_date=None,
+                               end_date=None, stats_type=None):
+        subscriber_events = Subscriber.objects.filter(
+            valid_through__range=(str(start_date), str(end_date)))
+        if stats_type:
+            qs =([Q(state=s)for s in stats_type])
+            subscriber_events = subscriber_events.filter(reduce(operator.or_, qs))
+        if level == 'tower':
+            subscriber_events = subscriber_events.filter(bts__id=level_id)
+        elif level == 'network':
+            subscriber_events = subscriber_events.filter(network__id=level_id)
+
+        return subscriber_events
+
+    def _get_bts_health_report(self, level, level_id, start_date=None,
+                               end_date=None, stats_type=None):
+        bts_events = models.SystemEvent.objects.order_by('-date')
+        if start_date or end_date:
+            bts_events = bts_events.filter(date__range=(str(start_date),
+                                                        str(end_date)))
+        if stats_type:
+            qs = [Q(type__icontains=s)for s in stats_type]
+            bts_events = bts_events.filter((reduce(operator.or_, qs)))
+        if level == 'tower':
+            bts_events = bts_events.filter(bts__id=level_id)
+        return bts_events
+

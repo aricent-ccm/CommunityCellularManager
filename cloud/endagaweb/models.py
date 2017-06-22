@@ -20,22 +20,23 @@ import logging
 import time
 import uuid
 
-from django.conf import settings
-from django.contrib.auth.models import Group, User
-from django.contrib.gis.db import models as geomodels
-from django.core.validators import MinValueValidator
-from django.core.exceptions import ValidationError
-from django.db import connection
-from django.db import models
-from django.db import transaction
-from django.db.models import F
-from django.db.models.signals import post_save
-from guardian.shortcuts import (assign_perm, get_users_with_perms)
-from rest_framework.authtoken.models import Token
 import django.utils.timezone
 import itsdangerous
 import pytz
 import stripe
+from django.conf import settings
+from django.contrib.auth.models import Group, User
+from django.contrib.gis.db import models as geomodels
+from django.contrib.postgres.fields import ArrayField
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
+from django.db import connection
+from django.db import models
+from django.db import transaction
+from django.db.models import F
+from django.db.models.signals import post_save, pre_save
+from guardian.shortcuts import (assign_perm, get_users_with_perms)
+from rest_framework.authtoken.models import Token
 
 from ccm.common import crdt, logger
 from ccm.common.currency import humanize_credits, CURRENCIES
@@ -46,7 +47,6 @@ from endagaweb.util import currency as util_currency
 from endagaweb.util import dbutils as dbutils
 
 stripe.api_key = settings.STRIPE_API_KEY
-
 
 # These UsageEvent kinds do not count towards subscriber activity.
 NON_ACTIVITIES = (
@@ -506,7 +506,6 @@ class ChargingEntity(models.Model):
     class Meta:
         abstract = True
 
-
 class Subscriber(models.Model):
     network = models.ForeignKey('Network', on_delete=models.CASCADE)
     bts = models.ForeignKey(
@@ -514,7 +513,7 @@ class Subscriber(models.Model):
     imsi = models.CharField(max_length=50, unique=True)
     name = models.TextField()
     crdt_balance = models.TextField(default=crdt.PNCounter("default").serialize())
-    state = models.CharField(max_length=10)
+    state = models.CharField(max_length=15)
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
     # Time of the last received UsageEvent that is in OUTBOUND_ACTIVITIES.  We
@@ -525,6 +524,9 @@ class Subscriber(models.Model):
     # When toggled, this will protect a subsriber from getting "vacuumed."  You
     # can still delete subs with the usual "deactivate" button.
     prevent_automatic_deactivation = models.BooleanField(default=False)
+    valid_through = models.DateTimeField(null=True, auto_now_add=True)
+    role = models.TextField(default='retailer')
+
 
     @classmethod
     def update_balance(cls, imsi, other_bal):

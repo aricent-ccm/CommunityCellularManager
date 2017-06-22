@@ -58,8 +58,6 @@ of patent rights can be found in the PATENTS file in the same directory.
             {% else %}
                 <p>There is no network activity to display.</p>
             {% endif %}
-            <canvas id="canvas" width="1000" height="500" style="display: none;"></canvas>
-
         </div> <!-- /.col-md-4 -->
     </div>
 {% endblock %}
@@ -95,7 +93,7 @@ of patent rights can be found in the PATENTS file in the same directory.
     <TimeseriesChartWithButtonsAndDatePickers
       title='Number of Calls'
       chartID='call-chart'
-      statTypes='free_call,oustside_call,local_call,local_recv_call,incoming_call,error_call'
+      statTypes='free_call,outside_call,local_call,local_recv_call,incoming_call,error_call'
       level='{{ level }}'
       levelID='{{ level_id }}'
       aggregation='count'
@@ -108,13 +106,13 @@ of patent rights can be found in the PATENTS file in the same directory.
     document.getElementById('call-number-chart')
   );
   {% endif %}
-  {% if 'Number of Minutes' in reports %}
+  {% if 'Minutes of Call' in reports %}
 
   React.render(
     <TimeseriesChartWithButtonsAndDatePickers
       title='Minutes of Calls'
       chartID='data-chart'
-      statTypes='free_call,oustside_call,local_call,local_recv_call,incoming_call,error_call'
+      statTypes='free_call,outside_call,local_call,local_recv_call,incoming_call,error_call'
       level='{{ level }}'
       levelID='{{ level_id }}'
       aggregation='duration'
@@ -128,11 +126,11 @@ of patent rights can be found in the PATENTS file in the same directory.
   );
 
   {% endif %}
-  {% if 'Total Usage' in reports %}
+  {% if 'Number of SMS' in reports %}
 
   React.render(
     <TimeseriesChartWithButtonsAndDatePickers
-      title='SMS usage'
+      title='Number of SMS '
       chartID='sms-chart'
       statTypes='local_sms,local_recv_sms,outside_sms,incoming_sms,free_sms,error_sms'
       level='{{ level }}'
@@ -153,16 +151,6 @@ of patent rights can be found in the PATENTS file in the same directory.
 function setloading() {
   var $btn = $('#submit').button().button('loading');
 }
-$(document).ready(function() {
-  $('input[type=radio][name="level"]').change(function() {
-    if (this.value == 'tower') {
-        $('#bts_list').show();
-    } else {
-      $('#bts_list').hide();
-    }
-  });
-});
-
 </script>
 
 {% endif %}

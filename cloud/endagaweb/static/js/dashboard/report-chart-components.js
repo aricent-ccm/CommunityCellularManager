@@ -36,7 +36,7 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
       buttons: ['hour', 'day', 'week', 'month', 'year'],
       icons: ['graph', 'list'],
       defaultView: 'graph',
-      defaultButtonText: 'month',
+      defaultButtonText: 'week',
       endpoint: '/api/v1/stats/',
       statTypes: 'sms',
       level: 'network',
@@ -97,11 +97,45 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
         isLoading: true,
         activeView: text,
       });
+      this.handleButtonClick();
     }
   },
 
   handleDownloadClick: function(text) {
-  },
+    var queryParams = {
+      'start-time-epoch': this.state.startTimeEpoch,
+      'end-time-epoch': this.state.endTimeEpoch,
+      'stat-types': this.props.statTypes,
+      'level':this.props.level,
+      'level_id': this.props.levelID,
+      'report-type':this.props.title,
+
+    };
+    $.get('/report/downloadcsv', queryParams, function(data,response) {
+
+     var todayTime = new Date(); var month = (todayTime .getMonth() + 1); var day = (todayTime .getDate()); var year = (todayTime .getFullYear());
+     var convertdate =  year+ "-" +  month + "-" +day;
+       this.setState({
+        isLoading: false,
+        data: data,
+        title:this.props.title
+   });
+     var filename = this.state.title
+     var csvData = new Blob([data], {type: 'text/csv;charset=utf-8;'});
+     var csvURL =  null;
+      if (navigator.msSaveBlob) {
+      csvURL = navigator.msSaveBlob(csvData, filename+"-"+convertdate+'.csv');
+      } else {
+      csvURL = window.URL.createObjectURL(csvData);
+     }
+     var tempLink = document.createElement('a');
+     document.body.appendChild(tempLink);
+     tempLink.href = csvURL;
+     tempLink.setAttribute('download', filename+"-"+convertdate+'.csv');
+     tempLink.target="_self"
+     tempLink.click();
+   }.bind(this));
+   },
 
   // Datepicker handlers, one each for changing the start and end times.
   startTimeChange: function(newTime) {
@@ -222,8 +256,13 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
             />
           );
         }, this)}
+        <span className='spacer'></span>
         <DownloadButton
           chartID={this.props.chartID}
+          startimeepoch = {this.props.starttime}
+          endTimeEpoch = {this.props.endTimeEpoch}
+          statsType = {this.props.statTypes}
+          reporttype = {this.props.title}
           onButtonClick={this.handleDownloadClick} />
         <span className='spacer'></span>
         <LoadingText
@@ -245,22 +284,6 @@ var TimeseriesChartWithButtonsAndDatePickers = React.createClass({
   },
 });
 
-
-
-
-function triggerDownload(imgURI) {
-  var evt = new MouseEvent('click', {
-    view: window,
-    bubbles: false,
-    cancelable: true
-  });
-
-  var a = document.createElement('a');
-  a.setAttribute('download', 'report.png');
-  a.setAttribute('href', imgURI);
-  a.setAttribute('target', '_blank');
-  a.dispatchEvent(evt);
-}
 
 var secondsMap = {
   'hour': 60 * 60,
@@ -291,7 +314,6 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
   for (var index in data) {
     var newSeries = { 'key': data[index]['key'] };
     var newValues = [];
-
     if( typeof(data[index]['values']) === 'object'){
       for (var series_index in data[index]['values']) {
         var newValue = [
@@ -353,8 +375,8 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
             .x(function(d) { return d[0] })
             .y(function(d) { return d[1] })
             //.staggerLabels(true)    //Too many bars and not enough room? Try staggering labels.
-            .tooltips(true)
-            //.showValues(true)       //...instead, show the bar value right on top of each bar.
+         //   .tooltips(true)
+          //  .showValues(true)       //...instead, show the bar value right on top of each bar.
             .transitionDuration(350)
             .stacked(false).showControls(false);
 
@@ -414,89 +436,6 @@ var updateChart = function(domTarget, data, xAxisFormatter, yAxisFormatter, yAxi
     return chart;
   });
 };
-
-
-var DownloadButton = React.createClass({
-  getDefaultProps: function() {
-    return {
-      onButtonClick: null,
-    }
-  },
-  componentWillMount() {
-    this.id = this.props.chartID + "-download";
-  },
-  triggerDownload: function(imgURI) {
-    var evt = new MouseEvent('click', {
-      view: window,
-      bubbles: false,
-      cancelable: true
-    });
-
-    var a = document.createElement('a');
-    a.setAttribute('download', 'report.png');
-    a.setAttribute('href', imgURI);
-    a.setAttribute('target', '_blank');
-    a.dispatchEvent(evt);
-  },
-  componentDidMount: function() {
-    var domTargetId = this.props.chartID;
-    var btn = document.getElementById(this.id);
-    var svg = document.getElementById(domTargetId);
-    var canvas = document.querySelector('canvas');
-
-    btn.addEventListener('click', function () {
-      var canvas = document.getElementById('canvas');
-      var ctx = canvas.getContext('2d');
-      var data = (new XMLSerializer()).serializeToString(svg);
-      var DOMURL = window.URL || window.webkitURL || window;
-
-      var img = new Image();
-      var svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
-      var url = DOMURL.createObjectURL(svgBlob);
-
-      img.onload = function() {
-        ctx.drawImage(img, 0, 0);
-        DOMURL.revokeObjectURL(url);
-
-        var imgURI = canvas
-          .toDataURL('image/png')
-          .replace('image/png', 'image/octet-stream');
-
-          //triggerDownload(imgURI);
-          var evt = new MouseEvent('click', {
-            view: window,
-            bubbles: false,
-            cancelable: true
-          });
-
-          var a = document.createElement('a');
-          a.setAttribute('download', 'report.png');
-          a.setAttribute('href', imgURI);
-          a.setAttribute('target', '_blank');
-          a.dispatchEvent(evt);
-      };
-
-      img.src = url;
-    });
-
-    //$('.download').hide();
-  },
-
-  render: function() {
-    return (
-      <span className="loadingText">
-        <a href="javascript:void(0);" onClick={this.onThisClick.bind(this)} title="Download" id={this.id}>
-          <i className='fa fa-lg fa-download' aria-hidden="true"></i>
-        </a>
-      </span>
-    );
-  },
-
-  onThisClick: function(text) {
-    this.props.onButtonClick(text);
-  }
-});
-
 
 
 var TimeseriesChart = React.createClass({
@@ -691,6 +630,10 @@ var DatePicker = React.createClass({
   componentDidMount: function() {
     var formattedDate = moment.unix(this.props.epochTime).format(this.props.dateFormat);
     var domTarget = '#' + this.props.pickerID;
+    $(domTarget).keydown(function(e){
+      e.preventDefault();
+      return false;
+    });
     $(domTarget)
       .datetimepicker(this.props.datePickerOptions)
       .data('DateTimePicker')
@@ -720,7 +663,85 @@ var DatePicker = React.createClass({
   },
 });
 
+var DownloadButton = React.createClass({
+  getDefaultProps: function() {
+    return {
+      visible: false,
+      startimeepoch:'',
+      endTimeEpoch:'',
+      defaultButtonText: 'week',
+      statsType:'',
+      onButtonClick: null,
+    }
+  },
+  componentWillMount() {
+    this.id = this.props.chartID + "-download";
+  },
+  componentDidMount: function() {
+    var domTargetId = this.props.chartID;
+    var btn = document.getElementById(this.id);
+    var svg = document.getElementById(domTargetId);
+    var canvas = document.querySelector('canvas');
 
+    btn.addEventListener('click', function () {
+      var width = $("#"+domTargetId).width();
+      var height = $("#"+domTargetId).height();
+
+      var canvas = document.getElementById('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      var ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = "#FFF";
+      ctx.fillRect(0, 0, width, height);
+
+      var data = (new XMLSerializer()).serializeToString(svg);
+      var DOMURL = window.URL || window.webkitURL;
+
+      var img = new Image();
+      var svgBlob = new Blob([data], {type: 'image/svg+xml;charset=utf-8'});
+      var url = DOMURL.createObjectURL(svgBlob);
+
+      img.onload = function() {
+        ctx.drawImage(img, 0, 0);
+        DOMURL.revokeObjectURL(url);
+
+        var imgURI = canvas
+          .toDataURL('image/png')
+          .replace('image/png', 'image/octet-stream');
+
+          var evt = new MouseEvent('click', {
+            view: window,
+            bubbles: false,
+            cancelable: true
+          });
+
+          var a = document.createElement('a');
+          a.setAttribute('download', 'report.png');
+          a.setAttribute('href', imgURI);
+          a.setAttribute('target', '_blank');
+          a.dispatchEvent(evt);
+      };
+      img.src = url;
+      //img.setAttribute("src", "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(data))) );
+    });
+  },
+  render: function() {
+    return (
+      <span className="loadingText">
+        <a href="javascript:void(0);" title="download graph" id={this.id}>
+          <i className='fa fa-lg fa-file-image-o' aria-hidden="true"></i>
+        </a>&nbsp;&nbsp;
+        <a href="javascript:void(0);" title = "download CSV" onClick={this.onThisClick.bind(this)}>
+          <i className='fa fa-lg fa-file-excel-o' aria-hidden="true"></i>
+        </a>
+      </span>
+    );
+  },
+  onThisClick: function(text) {
+    this.props.onButtonClick();
+  }
+});
 
 var ViewButton = React.createClass({
   propTypes: {

@@ -15,9 +15,15 @@ from endagaweb import models
 from endagaweb.models import NetworkDenomination
 from endagaweb.models import (UserProfile, UsageEvent, Network)
 from endagaweb.views.dashboard import ProtectedView
+from guardian.shortcuts import get_objects_for_user
 
 
 class BaseReport(ProtectedView):
+    """The base Report class.
+
+        Process request and response for report view pages.This class used for
+        handling filter by network, tower and report list.
+        """
     def __init__(self, reports, template, url_namespace='call-report',
                  **kwargs):
         super(BaseReport, self).__init__(**kwargs)
@@ -26,9 +32,26 @@ class BaseReport(ProtectedView):
         self.url_namespace = url_namespace
 
     def handle_request(self, request):
+        """Process request.
+
+        We want filters to persist even when someone changes pages without
+        re-submitting the form. Page changes will always come over a GET
+        request, not a POST.
+         - If it's a GET, we should try to pull settings from the session.
+         - If it's a POST, we should replace whatever is in the session.
+         - If it's a GET with no page, we should blank out the session.
+         """
         user_profile = UserProfile.objects.get(user=request.user)
         network = user_profile.network
         report_list = list({x for v in self.reports.itervalues() for x in v})
+        # Process parameters.
+        # We want filters to persist even when someone changes pages without
+        # re-submitting the form. Page changes will always come over a GET
+        # request, not a POST.
+        # - If it's a GET, we should try to pull settings from the session.
+        # - If it's a POST, we should replace whatever is in the session.
+        # - If it's a GET with no page variable, we should blank out the
+        #   session.
         if request.method == "POST":
             request.session['level_id'] = request.POST.get('level_id') or 0
             if request.session['level_id']:
@@ -37,6 +60,8 @@ class BaseReport(ProtectedView):
                 request.session['level'] = "network"
                 request.session['level_id'] = network.id
             request.session['reports'] = request.POST.getlist('reports', None)
+            # We always just do a redirect to GET. We include page reference
+            # to retain the search parameters in the session.
             return redirect(
                 urlresolvers.reverse(self.url_namespace) + '?filter=1')
 
@@ -44,9 +69,8 @@ class BaseReport(ProtectedView):
             if 'filter' not in request.GET:
                 # Reset filtering params.
                 request.session['level'] = 'network'
-                # TODO(Piyush/Shiv): Need to fix this subscriber report
                 if self.url_namespace == 'subscriber-report':
-                    request.session['level'] = ''
+                    request.session['level'] = 'network'
                 request.session['level_id'] = network.id
                 request.session['reports'] = report_list
         else:
@@ -61,6 +85,7 @@ class BaseReport(ProtectedView):
             network=user_profile.network).values('nickname', 'uuid', 'id')
         network_has_activity = UsageEvent.objects.filter(
             network=network).exists()
+
         context = {
             'networks': get_objects_for_user(request.user, 'view_network',
                                              klass=Network),
@@ -85,8 +110,8 @@ class CallReportView(BaseReport):
     def __init__(self, **kwargs):
         template = "dashboard/report/call-sms.html"
         url_namespace = "call-report"
-        reports = {'Call': ['Number of Calls', 'Number of Minutes'],
-                   'SMS': ['Total Usage'],}
+        reports = {'Call': ['Number of Calls', 'Minutes of Call'],
+                   'SMS': ['Number of SMS']}
         super(CallReportView, self).__init__(reports, template,
                                              url_namespace, **kwargs)
 
@@ -103,26 +128,34 @@ class SubscriberReportView(BaseReport):
     def __init__(self, **kwargs):
         template = "dashboard/report/subscriber.html"
         url_namespace = "subscriber-report"
-        reports = {}
-        super(SubscriberReportView, self).__init__(reports, template,
+        reports = {'Subscriber': ['Subscriber Activity',
+                                  'Subscriber Status']}
+        super(SubscriberReportView, self).__init__(reports ,template,
                                                    url_namespace, **kwargs)
 
     def get(self, request):
+        return self.handle_request(request)
+
+    def post(self, request):
         return self.handle_request(request)
 
 
 class HealthReportView(BaseReport):
     """View System health reports."""
 
-    def __init__(self, **kwargs):
-        template = "404.html"  # Fix once done
-        url_namespace = 'health-report'
-        reports = {}
-        super(HealthReportView, self).__init__(reports, template,
-                                               url_namespace, **kwargs)
 
+    def __init__(self, **kwargs):
+        template = "dashboard/report/health.html"
+        url_namespace = "health-report"
+        reports = {'Health': ['BTS Health']}
+        super(HealthReportView, self).__init__(reports ,template,
+                                                   url_namespace, **kwargs)
     def get(self, request):
         return self.handle_request(request)
+
+    def post(self, request):
+        return self.handle_request(request)
+
 
 
 class BillingReportView(ProtectedView):
@@ -135,7 +168,10 @@ class BillingReportView(ProtectedView):
                         'Retailer': ['Retailer Recharge',
                                      'Retailer Load Transfer',],
                         'Top Up': ['Top Up Report for Subscriber',
-                                   'Top Up Report',],}
+                                   'Top Up Report',],
+                        'Waterfall': ['Activation', 'Loader',
+                                      'Reload Amount', 'Reload Transaction']
+                        }
 
     def get(self, request):
         return self.handle_request(request)

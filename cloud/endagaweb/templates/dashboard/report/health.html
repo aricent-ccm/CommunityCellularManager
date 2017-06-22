@@ -19,17 +19,17 @@ of patent rights can be found in the PATENTS file in the same directory.
 {% endblock %}
 
 {% block content %}
-    {% include "dashboard/report/header.html" with header='Subscriber' %}
+    {% include "dashboard/report/header.html" with header='Health' %}
 
 <div class='row'>
-  {% include "dashboard/report/nav.html" with active_tab='subscriber_reports' %}
+  {% include "dashboard/report/nav.html" with active_tab='health_reports' %}
   <div class='content col-xs-12 col-sm-10 col-md-10'>
-    {% include "dashboard/report/filter.html" with action_url='/dashboard/reports/subscriber' %}
+    {% include "dashboard/report/filter.html" with action_url='/dashboard/reports/health' %}
     {% if network_has_activity %}
     <div class="row">
-      <div id='subscriber-chart'></div>
-      <div id='subscriber-status'></div>
-    {% include 'dashboard/timezone-notice.html' %}
+      <div id='health-chart'></div>
+    </div>
+       {% include 'dashboard/timezone-notice.html' %}
     {% else %}
     <p>There is no network activity to display.</p>
     {% endif %}
@@ -57,12 +57,12 @@ of patent rights can be found in the PATENTS file in the same directory.
 <script type="text/jsx">
   var currentTimeEpoch = {{ current_time_epoch }};
   var timezoneOffset = {{ timezone_offset }};
-  {% if 'Subscriber Activity' in reports %}
+  {% if 'BTS Health' in reports %}
   React.render(
     <TimeseriesChartWithButtonsAndDatePickers
-      title='Subscriber Activity'
+      title='BTS Status'
       chartID='call-chart'
-      statTypes='provisioned,deprovisioned,zero_balance_subscriber'
+      statTypes='bts down,bts up'
       level='{{ level }}'
       levelID='{{ level_id }}'
       aggregation='count'
@@ -72,71 +72,10 @@ of patent rights can be found in the PATENTS file in the same directory.
       tooltipUnits='s of'
       chartType='bar-chart'
     />,
-    document.getElementById('subscriber-chart')
+    document.getElementById('health-chart')
   );
   {% endif %}
-  {% if 'Subscriber Status' in reports %}
-    React.render(
-    <TimeseriesChartWithButtonsAndDatePickers
-      title='Subscriber Status'
-      chartID='status-chart'
-      statTypes='expired,first_expired,blocked'
-      level='{{ level }}'
-      levelID='{{ level_id }}'
-      aggregation='count'
-      yAxisLabel='numbers'
-      currentTimeEpoch={currentTimeEpoch}
-      timezoneOffset={timezoneOffset}
-      tooltipUnits='s of'
-      chartType='bar-chart'
-    />,
-    document.getElementById('subscriber-status')
-  );
-  {% endif %}
-
-
 </script>
-<script type="text/javascript">
-function setloading() {
-  var $btn = $('#submit').button().button('loading');
-}
-$(document).ready(function() {
-  $('#from_month').datetimepicker({
-    viewMode: 'years',
-    format: 'MM/YYYY'
-  });
-  $('#to_month').datetimepicker({
-    viewMode: 'years',
-    format: 'MM/YYYY'
-  });
 
-  $('#show').click(function(){
-    var from_date = moment($('#from_month').val(), 'MM/YYYY').unix();
-    var to_month = moment($('#to_month').val(), 'MM/YYYY').unix();
 
-    console.log("Date = ", from_date, to_month);
-    var tableData = [
-      [1111,2222],
-      [3333,4444],
-      [5555,6666]
-    ];
-
-    $('#loader_summary').DataTable({
-      data: tableData,
-      paging:   false,
-      ordering: false,
-      info:     false,
-      searching: false,
-      autoWidth: true,
-      scrollY: 320,
-      destroy: true,
-      columns: [
-          { title: "Title" },
-          { title: "Value" }
-      ]
-    });
-
-  });
-});
-</script>
 {% endblock %}

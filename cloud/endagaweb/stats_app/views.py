@@ -4,7 +4,7 @@ Copyright (c) 2016-present, Facebook, Inc.
 All rights reserved.
 
 This source code is licensed under the BSD-style license found in the
-LICENSE file in the root directory of this source tree. An additional grant
+LICENSE file in the root directory of this source tree. An additional grant 
 of patent rights can be found in the PATENTS file in the same directory.
 """
 
@@ -14,10 +14,17 @@ from rest_framework import renderers
 from rest_framework import response
 from rest_framework import status
 from rest_framework import views
+import pytz
+from rest_framework.authtoken.models import Token
+import stripe
+from guardian.shortcuts import get_objects_for_user
 
+from ccm.common.currency import parse_credits, humanize_credits, \
+    CURRENCIES, Money
 from endagaweb.stats_app import stats_client
 
-
+from endagaweb.models import (UserProfile, Ledger, Subscriber, UsageEvent,
+                              Network, PendingCreditUpdate, Number)
 # Set the stat types that we can query for.  Note that some of these kinds are
 # 'faux kinds' in that the stats client aggregates the true UsageEvent kinds
 # for these other categories: sms, call, uploaded_data, downloaded_data,
@@ -29,17 +36,24 @@ TIMESERIES_STAT_KEYS = stats_client.TIMESERIES_STAT_KEYS
 SUBSCRIBER_KINDS = stats_client.SUBSCRIBER_KINDS
 ZERO_BALANACE_SUBSCRIBER = stats_client.ZERO_BALANCE_SUBSCRIBER
 INACTIVE_SUBSCRIBER = stats_client.INACTIVE_SUBSCRIBER
+HEALTH_STATUS = stats_client.HEALTH_STATUS
+WATERFALL_KINDS = ['loader', 'reload_rate', 'reload_amount',
+                   'reload_transaction', 'average_frequency']
 DENOMINATION_KINDS = stats_client.DENOMINATION_KINDS
 # ZERO_BALANACE_SUBSCRIBER
 INTERVALS = ['years', 'months', 'weeks', 'days', 'hours', 'minutes']
+# Set valid aggregation types.
+AGGREGATIONS = ['count', 'duration', 'up_byte_count', 'down_byte_count',
+                'average_value']
 TRANSFER_KINDS = stats_client.TRANSFER_KINDS
 VALID_STATS = SMS_KINDS + CALL_KINDS + GPRS_KINDS + TIMESERIES_STAT_KEYS + \
               TRANSFER_KINDS + SUBSCRIBER_KINDS + ZERO_BALANACE_SUBSCRIBER + \
-              INACTIVE_SUBSCRIBER + DENOMINATION_KINDS
+              INACTIVE_SUBSCRIBER + WATERFALL_KINDS + HEALTH_STATUS + DENOMINATION_KINDS
 # Set valid intervals.
 # Set valid aggregation types.
 AGGREGATIONS = ['count', 'duration', 'up_byte_count', 'down_byte_count',
                 'average_value', 'transaction_sum']
+
 
 
 # Any requested start time earlier than this date will be set to this date.
@@ -161,11 +175,16 @@ class StatsAPIView(views.APIView):
                 client_type = stats_client.SubscriberStatsClient
             elif stat_type in INACTIVE_SUBSCRIBER:
                 client_type = stats_client.SubscriberStatsClient
+            elif stat_type in HEALTH_STATUS:
+                client_type = stats_client.BTSStatsClient
+            elif stat_type in WATERFALL_KINDS:
+                client_type = stats_client.WaterfallStatsClient
+            elif stat_type in TIMESERIES_STAT_KEYS:
+                client_type = stats_client.TimeseriesStatsClient
             elif stat_type in TIMESERIES_STAT_KEYS:
                 client_type = stats_client.TimeseriesStatsClient
             else:
                 client_type = stats_client.TopUpStatsClient
-
             # Instantiate the client at an infrastructure level.
             if infrastructure_level == 'global':
                 client = client_type('global')
@@ -177,6 +196,7 @@ class StatsAPIView(views.APIView):
                 extra_param = params['extras'][index]
             except IndexError:
                 extra_param = None
+
 
             # Get timeseries results and append it to data.
             results = client.timeseries(
