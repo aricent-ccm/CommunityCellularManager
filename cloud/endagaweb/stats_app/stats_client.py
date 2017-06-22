@@ -203,7 +203,6 @@ class StatsClientBase(object):
         if report_view == 'summary':
             # Return sum count for pie-chart and table view
             return sum(values)
-
         timestamps = [
             int(time.mktime(dt.timetuple()) * 1e3 + dt.microsecond / 1e3)
             for dt in datetimes
@@ -400,7 +399,7 @@ class GPRSStatsClient(StatsClientBase):
     def convert_to_megabytes(self, timeseries):
         """Converts values in a [(time, value) .. ] timeseries to MB."""
         times, values = zip(*timeseries)
-        values = [v / 2. ** 20 for v in values]
+        values = [v / 2.**20 for v in values]
         return zip(times, values)
 
 

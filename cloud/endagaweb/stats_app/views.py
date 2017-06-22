@@ -23,7 +23,7 @@ from endagaweb.stats_app import stats_client
 # for these other categories: sms, call, uploaded_data, downloaded_data,
 # total_data.
 SMS_KINDS = stats_client.SMS_KINDS + ['sms']
-CALL_KINDS = stats_client.CALL_KINDS + ['call'] #, 'oustside_call']
+CALL_KINDS = stats_client.CALL_KINDS + ['call']
 GPRS_KINDS = ['total_data', 'uploaded_data', 'downloaded_data']
 TIMESERIES_STAT_KEYS = stats_client.TIMESERIES_STAT_KEYS
 SUBSCRIBER_KINDS = stats_client.SUBSCRIBER_KINDS
@@ -192,9 +192,11 @@ class StatsAPIView(views.APIView):
                 "key": stat_type,
                 "values": results
             })
+
         # Convert params.stat_types back to CSV and echo back the request.
         params['stat-types'] = ','.join(params['stat-types'])
         data['request'] = params
+
         # Send results and echo back the request params.
         response_status = status.HTTP_200_OK
         return response.Response(data, response_status)
