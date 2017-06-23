@@ -25,7 +25,10 @@ CALL_KINDS = [
 SMS_KINDS = [
     'local_sms', 'local_recv_sms', 'outside_sms', 'incoming_sms', 'free_sms',
     'error_sms']
-USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs']
+SUBSCRIBER_KINDS = ['provisioned', 'deprovisioned']
+ZERO_BALANCE_SUBSCRIBER = ['zero_balance_subscriber']
+INACTIVE_SUBSCRIBER = ['expired', 'first_expired', 'blocked']
+USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs'] + SUBSCRIBER_KINDS
 TIMESERIES_STAT_KEYS = [
     'ccch_sdcch4_load', 'tch_f_max', 'tch_f_load', 'sdcch8_max', 'tch_f_pdch_load', 'tch_f_pdch_max', 'tch_h_load', 'tch_h_max', 'sdcch8_load', 'ccch_sdcch4_max',
     'sdcch_load', 'sdcch_available', 'tchf_load', 'tchf_available',
@@ -114,6 +117,14 @@ class StatsClientBase(object):
         elif param in TIMESERIES_STAT_KEYS:
             objects = models.TimeseriesStat.objects
             filters = Q(key=param)
+        elif param in ZERO_BALANCE_SUBSCRIBER:
+            objects = models.UsageEvent.objects
+            filters = Q(oldamt__gt=0, newamt__lte=0)
+        elif param in INACTIVE_SUBSCRIBER:
+            aggregation = 'valid_through'
+            objects = models.Subscriber.objects
+            filters = Q(state=param)
+
         # Filter by infrastructure level.
         if self.level == 'tower':
             filters = filters & Q(bts__id=self.level_id)
@@ -136,6 +147,8 @@ class StatsClientBase(object):
         elif aggregation == 'average_value':
             queryset_stats = qsstats.QuerySetStats(
                 queryset, 'date', aggregate=aggregates.Avg('value'))
+        elif aggregation == 'valid_through':
+            queryset_stats = qsstats.QuerySetStats(queryset, 'valid_through')
         else:
             queryset_stats = qsstats.QuerySetStats(queryset, 'date')
         timeseries = queryset_stats.time_series(start, end, interval=interval)
@@ -369,3 +382,15 @@ class TimeseriesStatsClient(StatsClientBase):
         if 'aggregation' not in kwargs:
             kwargs['aggregation'] = 'average_value'
         return self.aggregate_timeseries(key, **kwargs)
+
+class SubscriberStatsClient(StatsClientBase):
+    """Gathers data on SubscriberStats instance at tower and network level"""
+
+    def __init__(self, *args, **kwargs):
+        super(SubscriberStatsClient, self).__init__(*args, **kwargs)
+
+    def timeseries(self, key=None, **kwargs):
+        if 'aggregation' not in kwargs:
+            kwargs['aggregation'] = 'average_value'
+        return self.aggregate_timeseries(key, **kwargs)
+

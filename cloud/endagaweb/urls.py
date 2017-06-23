@@ -165,6 +165,15 @@ urlpatterns = [
     # OAuth login TODO(omar): setup OAuth provider
     url(r'^staff-login/', endagaweb.views.user.staff_login_view),
     url(r'^accounts/', include('allauth.urls')),
+    # Subscriber report graph
+    url(r'^dashboard/reports/subscriber',
+        endagaweb.views.reports.SubscriberReportView.as_view(),
+        name='subscriber-report'),
+    # Download csv for graph
+    url(r'^report/downloadcsv',
+        endagaweb.views.reports.ReportGraphDownload.as_view(),
+        ),
+
 ]
 
 
