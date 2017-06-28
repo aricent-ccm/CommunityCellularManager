@@ -153,10 +153,11 @@ of patent rights can be found in the PATENTS file in the same directory.
                     <span aria-hidden="true">&times;</span>
                 </button>
                 <h4 class='modal-title'>
-                    Please enter your password for authorization
+                    <p>Hello <strong>{{ user_profile.display_name }}</strong>, please enter your password for authorization.</p>
                  </h4>
             </div>
             <div class='modal-body'>
+                 <div id='messages-container'></div>
                 <form id='password-authorization'>
                     <div class='form-group'>
                         <div class='controls'>
@@ -171,7 +172,6 @@ of patent rights can be found in the PATENTS file in the same directory.
                 <button class='btn btn-primary' type='button' id='pwd-dialog-submit'>
                     OK
                 </button>
-                <div id='messages-container'></div>
             </div>
         </div>
     </div>
@@ -251,7 +251,7 @@ of patent rights can be found in the PATENTS file in the same directory.
           var html = '<div class="alert alert-danger">' + message + '</div>';
           $('#messages-container').html(html);
           setTimeout(function() {
-            $('#messages-container').fadeTo(500, 0);
+            $('#messages-container').html("")
             $('#pwd-input').val("");
           }, 2000);
         }
