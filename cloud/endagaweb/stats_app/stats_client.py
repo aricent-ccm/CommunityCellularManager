@@ -11,13 +11,13 @@ of patent rights can be found in the PATENTS file in the same directory.
 from datetime import datetime
 import time
 
+from operator import itemgetter
 from django.db.models import aggregates
 from django.db.models import Q
 import pytz
 import qsstats
 
 from endagaweb import models
-from operator import itemgetter
 
 
 

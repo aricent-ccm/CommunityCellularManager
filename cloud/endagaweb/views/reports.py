@@ -2,27 +2,22 @@
 
 import datetime
 import time
-import csv
+
 import pytz
-import operator
 from django.core import urlresolvers
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.template.loader import get_template
 from guardian.shortcuts import get_objects_for_user
 
+from ccm.common.currency import CURRENCIES
 from ccm.common.currency import humanize_credits
 from endagaweb import models
 from endagaweb.models import NetworkDenomination
-from endagaweb.models import (UserProfile, Subscriber, UsageEvent, Network)
+from endagaweb.models import (UserProfile, UsageEvent, Network)
 from endagaweb.views.dashboard import ProtectedView
-from guardian.shortcuts import get_objects_for_user
-from ccm.common.currency import CURRENCIES
-from django.utils import timezone as django_utils_timezone
-from django.db.models import Q
 
-report_keys= ('Top Up', 'Call & SMS', 'Retailer')
-reports_dict= {
+REPORTS_DICT = {
     'Top Up': ['Amount Based', 'Count Based'],
     'Call & SMS': ['SMS Billing', 'Call and SMS Billing', 'Call Billing'],
     'Retailer': ['Retailer Recharge', 'Retailer Load Transfer'],
@@ -122,7 +117,7 @@ class BillingReportView(ProtectedView):
         super(BillingReportView, self).__init__(**kwargs)
         self.template = "dashboard/report/billing.html"
         self.url_namespace = 'billing-report'
-        self.reports = reports_dict
+        self.reports = REPORTS_DICT
 
     def get(self, request):
         return self.handle_request(request)
@@ -146,14 +141,12 @@ class BillingReportView(ProtectedView):
             request.session['reports'] = request.POST.getlist('reports', None)
             return redirect(
                 urlresolvers.reverse(self.url_namespace) + '?filter=1')
-
         elif request.method == "GET":
             if 'filter' not in request.GET:
                 # Reset filtering params.
                 request.session['level'] = 'network'
-                # TODO(Piyush/Shiv): Need to fix this subscriber report
                 if self.url_namespace == 'subscriber-report':
-                    request.session['level'] = ''
+                    request.session['level'] = 'network'
                 request.session['level_id'] = network.id
                 request.session['reports'] = report_list
                 request.session['topup_percent'] = 100
@@ -168,8 +161,10 @@ class BillingReportView(ProtectedView):
             network_id=network.id)
 
         for denom in denomination:
-            start_amount = humanize_credits(denom.start_amount, currency=CURRENCIES[network.currency])
-            end_amount = humanize_credits(denom.end_amount, currency=CURRENCIES[network.currency])
+            start_amount = humanize_credits(
+                denom.start_amount, currency=CURRENCIES[network.currency])
+            end_amount = humanize_credits(
+                denom.end_amount, currency=CURRENCIES[network.currency])
             denom_list.append(
                 (start_amount.amount_raw, end_amount.amount_raw))
         formatted_denomnation = []
@@ -177,10 +172,12 @@ class BillingReportView(ProtectedView):
             # Now format to set them as stat-types
             formatted_denomnation.append(
                 str(humanize_credits(
-                    denom[0], CURRENCIES[network.subscriber_currency])).replace(',', '')
+                    denom[0],
+                    CURRENCIES[network.subscriber_currency])).replace(',', '')
                 + ' - ' +
                 str(humanize_credits(
-                    denom[1], CURRENCIES[network.subscriber_currency])).replace(',', ''))
+                    denom[1],
+                    CURRENCIES[network.subscriber_currency])).replace(',', ''))
             denom_list2.append(
                 str(denom[0])
                 + '-' +
