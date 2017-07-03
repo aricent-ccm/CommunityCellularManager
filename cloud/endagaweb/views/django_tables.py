@@ -111,9 +111,6 @@ class MinimalSubscriberTable(tables.Table):
         return render_balance(record)
 
 def render_imsi(record):
-    #print(record)
-    if record.imsi:
-        print("ooooooooooooooooooooo")
     element = "<input type = 'checkbox' class ='imsi_id' name='imsi[]' " \
           "value='{0}'  id ='imsi_id_{0}' " \
           "onchange = 'imsiSelected(this)' / > ".format(record.imsi)
@@ -131,10 +128,8 @@ class SubscriberTable(tables.Table):
         attrs = {'class': 'table'}
 
     imsi = tables.CheckBoxColumn(accessor="imsi", attrs={"th__input":
-                                                                {"name":"'imsi[]'checked/>",
-                                                                 "value" : "{{ record }}",
-
-                                                                 "id" : "example-select-all",
+                                                                {
+                                                                 "id" : "subscriber-select-all",
                                                                     "onclick": "toggle(this)",}},
                                       orderable=False)
     name_and_imsi_link = tables.Column(
