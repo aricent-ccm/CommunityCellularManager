@@ -86,6 +86,10 @@ def render_balance(record):
     return humanize_credits(record.balance,
                             CURRENCIES[record.network.subscriber_currency])
 
+class CheckBoxColumnWithName(tables.CheckBoxColumn):
+    @property
+    def header(self):
+        return self.verbose_name
 
 class MinimalSubscriberTable(tables.Table):
     """Showing just a few sub attributes."""
@@ -106,22 +110,42 @@ class MinimalSubscriberTable(tables.Table):
     def render_balance(self, record):
         return render_balance(record)
 
+def render_imsi(record):
+    #print(record)
+    if record.imsi:
+        print("ooooooooooooooooooooo")
+    element = "<input type = 'checkbox' class ='imsi_id' name='imsi[]' " \
+          "value='{0}'  id ='imsi_id_{0}' " \
+          "onchange = 'imsiSelected(this)' / > ".format(record.imsi)
+
+    return safestring.mark_safe(element)
+
 
 class SubscriberTable(tables.Table):
     """A django-tables2 Table definition for the subscriber list."""
 
     class Meta:
         model = models.Subscriber
-        fields = ('name_and_imsi_link', 'numbers', 'balance', 'status',
+        fields = ('imsi','name_and_imsi_link', 'numbers', 'balance', 'status',
             'last_active')
         attrs = {'class': 'table'}
 
+    imsi = tables.CheckBoxColumn(accessor="imsi", attrs={"th__input":
+                                                                {"name":"'imsi[]'checked/>",
+                                                                 "value" : "{{ record }}",
+
+                                                                 "id" : "example-select-all",
+                                                                    "onclick": "toggle(this)",}},
+                                      orderable=False)
     name_and_imsi_link = tables.Column(
         empty_values=(), verbose_name='Name / IMSI', order_by=('name', 'imsi'))
     status = tables.Column(empty_values=(), order_by=('last_camped'))
     numbers = tables.Column(orderable=False, verbose_name='Number(s)')
     balance = tables.Column(verbose_name='Balance')
     last_active = tables.Column(verbose_name='Last Active')
+
+    def render_imsi(self, record):
+        return render_imsi(record)
 
     def render_name_and_imsi_link(self, record):
         return render_name_and_imsi_link(record)
