@@ -368,3 +368,54 @@ class SelectTowerForm(forms.Form):
         self.helper.form_action = '/dashboard/staff/tower-monitoring'
         self.helper.add_input(Submit('submit', 'Select'))
         self.helper.layout = Layout('tower')
+
+
+class NotificationForm(forms.Form):
+    types = (
+        ('automatic', 'Automatic'),
+        ('mapped', 'Mapped')
+    )
+    help_text = (
+        '<b>Automatic:</b> Sent to user automatically, <br>'
+        '<b>Mapped:</b> Notification will be sent to mapped '
+        'users.')
+    type = forms.ChoiceField(
+        required=True,
+        label='',
+        help_text=help_text, choices=types,
+        widget=forms.RadioSelect(attrs={'title': 'Notification type'}),)
+    event = forms.CharField(widget=forms.TextInput(
+        attrs={'title': 'Event Type', 'style': 'width:500px'}),
+        required=True, label='Events')
+    message = forms.CharField(
+        label='Message', widget=forms.Textarea(
+            attrs={'title': 'Notification message',
+                   'placeholder': 'Enter Message...',
+                   'rows': '4'}), required=True,
+        min_length=20,
+        max_length=160)
+    number = forms.IntegerField(widget=forms.NumberInput(
+        attrs={'title': 'Notification number', 'style': 'width:250px'}),
+        required=True, label='Number', disabled=True, min_value=0)
+    pk = forms.CharField(widget=forms.HiddenInput())
+
+    def __init__(self, *args, **kwargs):
+        super(NotificationForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_id = 'network-notification-form'
+        self.helper.form_method = 'POST'
+        self.helper.form_action = '/dashboard/network/notification'
+
+        number = Field('number')
+        event = Field('event')
+        message = Field('message')
+        type = Field('type')
+
+        self.helper.layout = Layout(
+            type,
+            number,
+            event,
+            message,
+            'pk',
+            Submit('submit', 'Submit', css_class='invisible'),
+        )
