@@ -124,7 +124,7 @@ class SubscriberTable(tables.Table):
     class Meta:
         model = models.Subscriber
         fields = ('imsi','name_and_imsi_link', 'numbers', 'balance', 'status',
-            'last_active')
+            'last_active','role')
         attrs = {'class': 'table'}
 
     imsi = tables.CheckBoxColumn(accessor="imsi", attrs={"th__input":
@@ -138,6 +138,7 @@ class SubscriberTable(tables.Table):
     numbers = tables.Column(orderable=False, verbose_name='Number(s)')
     balance = tables.Column(verbose_name='Balance')
     last_active = tables.Column(verbose_name='Last Active')
+    role = tables.Column(empty_values=(), order_by='role')
 
     def render_imsi(self, record):
         return render_imsi(record)

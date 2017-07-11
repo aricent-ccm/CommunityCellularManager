@@ -136,12 +136,8 @@ class Subscriber(APIView):
                               authentication.TokenAuthentication)
 
     def delete(self, request, imsi):
-        print("vvvvvvvvvvvvvvvvvvvv",request)
-        print ("iiiiiiiiiiiiiiiii",imsi)
         network = get_network_from_user(request.user)
-        print("ooooooooooooooo ",network)
         imsi_list = imsi.split(",");
-        print("aaaaaaaaaaaa ",imsi_list)
         for imsi in imsi_list:
             subscriber = models.Subscriber.objects.get(imsi=imsi)
             if subscriber.network != network:
