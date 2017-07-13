@@ -25,7 +25,7 @@ CALL_KINDS = [
 SMS_KINDS = [
     'local_sms', 'local_recv_sms', 'outside_sms', 'incoming_sms', 'free_sms',
     'error_sms']
-SUBSCRIBER_KINDS = ['provisioned', 'deprovisioned']
+SUBSCRIBER_KINDS = ['Provisioned', 'deactivate_number']
 ZERO_BALANCE_SUBSCRIBER = ['zero_balance_subscriber']
 INACTIVE_SUBSCRIBER = ['expired', 'first_expired', 'blocked']
 USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs'] + SUBSCRIBER_KINDS
