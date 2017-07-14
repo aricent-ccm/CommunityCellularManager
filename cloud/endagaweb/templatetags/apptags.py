@@ -84,7 +84,5 @@ def tmpl_const(name):
 
 @register.inclusion_tag('dashboard/tower_detail/tower_select.html')
 def get_towers(network_id):
-    print "network_id = ", network_id
-    towers = BTS.objects.filter(
-        network=network_id).values('nickname', 'uuid', 'id')
+    towers = BTS.objects.filter(network=network_id)
     return {'towers': towers}
