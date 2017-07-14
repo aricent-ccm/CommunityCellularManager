@@ -502,14 +502,13 @@ class SubscriberTest(TestCase):
             balance=100000, name='sub-two', imsi=cls.imsi3,
             network=cls.bts.network, bts=cls.bts)
         cls.sub2_network1.save()
-        cls.number4 = models.Number(number='6285574719326',
-                                           state="inuse",
-                                           network=cls.user_profile.network,
-                                           subscriber=cls.sub2_network1,
-                                           kind="number.nexmo.monthly")
+        cls.number4 = models.Number(number='6285574719326', state="inuse",
+                                    network=cls.user_profile.network,
+                                    subscriber=cls.sub2_network1,
+                                    kind="number.nexmo.monthly")
         cls.number4.save()
-        cls.pcu2 = models.PendingCreditUpdate(subscriber=cls.sub2_network1, amount=300,
-                                             uuid='abc345')
+        cls.pcu2 = models.PendingCreditUpdate(subscriber=cls.sub2_network1,
+                                              amount=300, uuid='abc345')
         cls.pcu2.save()
 
     @classmethod
@@ -621,10 +620,11 @@ class SubscriberTest(TestCase):
         """We can deactivate the bulk Subscriber via DELETE """
 
 
-        url = '/api/v2/subscribers/%s,%s' % (self.sub.imsi,self.sub2_network1.imsi)
-        print(url)
+        url = '/api/v2/subscribers/%s,%s' \
+              % (self.sub.imsi, self.sub2_network1.imsi)
         header = {
-            'HTTP_AUTHORIZATION': 'Token %s' % self.user_profile.network.api_token
+            'HTTP_AUTHORIZATION': 'Token %s'
+                                  % self.user_profile.network.api_token
         }
         with mock.patch('endagaweb.celery.app.send_task') as mocked_task:
             response = self.client.delete(url, **header)
