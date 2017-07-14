@@ -743,7 +743,7 @@ class NetworkNotifications(ProtectedView):
                     notification.number = number
                     notification.save()
                     # Write message to template for parsing and translation
-                    tasks.translate(message)
+                    #tasks.translate(message)
             except IntegrityError:
                 if type == 'mapped':
                     duplicate = number
