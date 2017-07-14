@@ -525,6 +525,8 @@ class Subscriber(models.Model):
     # When toggled, this will protect a subsriber from getting "vacuumed."  You
     # can still delete subs with the usual "deactivate" button.
     prevent_automatic_deactivation = models.BooleanField(default=False)
+    # role of subscriber
+    role = models.TextField(null=True, blank=True, default="Subscriber")
 
     @classmethod
     def update_balance(cls, imsi, other_bal):
