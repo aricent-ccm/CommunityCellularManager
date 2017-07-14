@@ -295,6 +295,7 @@ class SubscriberInfo(ProtectedView):
             'currency': CURRENCIES[network.subscriber_currency],
             'user_profile': user_profile,
             'subscriber': subscriber,
+            'network': network
         }
         try:
             context['created'] = subscriber.usageevent_set.order_by(
@@ -447,6 +448,7 @@ class SubscriberActivity(ProtectedView):
             'end_date': context_end_date,
             'all_services': all_services,
             'checked_services': checked_services,
+            'network': network
         }
 
         template = get_template('dashboard/subscriber_detail/activity.html')
@@ -476,7 +478,8 @@ class SubscriberSendSMS(ProtectedView):
             'user_profile': user_profile,
             'subscriber': subscriber,
             'send_sms_form': dform.SubscriberSendSMSForm(
-                initial=initial_form_data)
+                initial=initial_form_data),
+            'network': network
         }
         # Render template.
         template = get_template('dashboard/subscriber_detail/send_sms.html')
@@ -541,6 +544,7 @@ class SubscriberAdjustCredit(ProtectedView):
             'pending_updates': pending_updates,
             'credit_update_form': dform.SubscriberCreditUpdateForm(
                 initial=initial_form_data),
+            'network': network
         }
         # Render template.
         template = get_template(
@@ -631,6 +635,7 @@ class SubscriberEdit(ProtectedView):
                 initial=initial_form_data),
             'network_version': (
                 subscriber.network.get_lowest_tower_version()),
+            'network': network
         }
         # Render template.
         template = get_template(
