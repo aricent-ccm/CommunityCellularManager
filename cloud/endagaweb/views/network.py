@@ -747,11 +747,15 @@ class NetworkNotifications(ProtectedView):
                     notification.save()
                     # Write message to template for parsing and translation
                     tasks.translate(message)
-                    message = 'Notification added successfully!'
-                    messages.success(request, message)
             except IntegrityError:
-                alert_message = '{0} notification already exists!'.format(
-                    str(type).title())
+                if type == 'mapped':
+                    duplicate = number
+                    field = 'Number'
+                else:
+                    duplicate = event
+                    field = 'Event'
+                alert_message = '{0} notification for {1}: {2} already exists!'.format(
+                    str(type).title(), field, duplicate)
                 messages.error(request, alert_message,
                                extra_tags="alert alert-danger")
                 return redirect(urlresolvers.reverse('network-notifications'))
