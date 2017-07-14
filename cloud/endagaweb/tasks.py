@@ -449,6 +449,7 @@ def translate(self, message, retry_delay=60*10, max_retries=432):
     The default retry is every 10 min for 3 days.
     """
     print "writing network notification message for translation '%s'"
+    print "TEMPLATES_PATH = ", TEMPLATES_PATH
     try:
         translation_file = "/dashboard/network_detail/translate.html"
         handle = open(TEMPLATES_PATH + translation_file, 'a+')
