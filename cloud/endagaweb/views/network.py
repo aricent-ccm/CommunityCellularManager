@@ -631,11 +631,13 @@ class NetworkDenomination(ProtectedView):
             'status': 'ok',
             'messages': [],
         }
-        dnm_id = request.GET.get('id') or False
-        if dnm_id:
+        dnm_ids = request.GET.getlist('ids[]') or False
+        if dnm_ids:
             try:
-                denom = models.NetworkDenomination.objects.get(id=dnm_id)
-                denom.delete()
+                denom = models.NetworkDenomination.objects.filter(
+                    id__in=dnm_ids)
+                for denomination in denom:
+                    denomination.delete()
                 response['status'] = 'success'
                 messages.success(request, 'Denomination deleted successfully.',
                                  extra_tags='alert alert-success')
