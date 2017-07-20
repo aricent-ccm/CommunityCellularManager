@@ -489,16 +489,22 @@ class NetworkDenomination(ProtectedView):
             response["data"] = denom_data
             return http.HttpResponse(json.dumps(response),
                                      content_type="application/json")
+
         invalid_ranges = []
         max_denominations = 0
+        merge = request.GET.get('merge', None)
         for denomination in denom:
             if denomination.start_amount > (max_denominations+1000):
                 start_range = humanize_credits(max_denominations,
                                                CURRENCIES[currency]).amount
                 end_range = humanize_credits(denomination.start_amount,
                                              CURRENCIES[currency]).amount
-                invalid_ranges.append({"start": start_range,
-                                       "end": end_range})
+                if merge:
+                    denomination.start_amount = max_denominations+1000
+                    denomination.save()
+                else:
+                    invalid_ranges.append({"start": start_range,
+                                           "end": end_range})
             max_denominations = denomination.end_amount
 
         # Configure the table of denominations. Do not show any pagination
