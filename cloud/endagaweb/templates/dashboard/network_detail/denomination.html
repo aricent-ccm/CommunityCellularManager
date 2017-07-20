@@ -43,6 +43,12 @@ of patent rights can be found in the PATENTS file in the same directory.
         {% include "dashboard/network_detail/nav.html" with active_tab='network-denominations' %}
 
         <div class='content col-xs-12 col-sm-10 col-md-10'>
+            <div class="alert alert-warning alert-dismissable">
+                <a href="#" class="close" data-dismiss="alert" aria-label="close">×</a>
+                <p><strong>Warning!</strong> There is {{ invalid_ranges | length }} gap in defined denomination ranges.</p>
+                <p>Gap are {% for range in invalid_ranges %}<span class="badge badge-danger">{{ range.start }} - {{ range.end }}</span> {% endfor %}</p>
+
+            </div>
             {% for message in messages %}
             <div class="message alert alert-{{ message.tags }}">
                 <a href="#" class="close" data-dismiss="alert">&times;</a>
