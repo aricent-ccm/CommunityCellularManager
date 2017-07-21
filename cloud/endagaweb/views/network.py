@@ -663,7 +663,6 @@ class NetworkBalanceLimit(ProtectedView):
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
         # Set the context with various stats.
-        currency = network.subscriber_currency
         context = {
             'networks': get_objects_for_user(request.user, 'view_network',
                                              klass=models.Network),
@@ -713,7 +712,7 @@ class NetworkBalanceLimit(ProtectedView):
                             transaction_val = int(max_failure_transaction)
                             network.max_failure_transaction = transaction_val
                             success.append(
-                                'Network maximun permissible unsuccessful' \
+                                'Network maximun permissible unsuccessful'
                                 ' transactions limit updated.')
                         network.save()
                     except ValueError:

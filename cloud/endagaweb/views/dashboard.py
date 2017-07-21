@@ -558,7 +558,6 @@ class SubscriberAdjustCredit(ProtectedView):
             currency = network.subscriber_currency
             amount = parse_credits(request.POST['amount'],
                     CURRENCIES[currency]).amount_raw
-            currency_value = str(humanize_credits(network.max_balance, CURRENCIES[currency]))
             if abs(amount) > 2147483647:
                 raise ValueError(error_text)
         except ValueError:

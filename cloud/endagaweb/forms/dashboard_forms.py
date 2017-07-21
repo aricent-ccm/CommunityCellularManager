@@ -369,6 +369,7 @@ class SelectTowerForm(forms.Form):
         self.helper.add_input(Submit('submit', 'Select'))
         self.helper.layout = Layout('tower')
 
+
 class NetworkBalanceLimit(forms.Form):
 
     """Crispy form to set Network balance limit and transaction.
@@ -377,7 +378,7 @@ class NetworkBalanceLimit(forms.Form):
     max_balance_title = 'Maximum account balance of an imsi within a network.'
     max_balance = forms.CharField(required=False, label="Maximum Balance Limit",
                                   max_length=10,
-                                  widget=forms.TextInput(attrs={'title': max_balance_title}))
+                                  widget=forms.TextInput(attrs = {'title': max_balance_title}))
     max_unsuccessful_transaction_title ='Maximum  consecutive failure ' \
                                         'transactions an imsi can perform ' \
                                         'within 24 hrs.'
@@ -400,14 +401,13 @@ class NetworkBalanceLimit(forms.Form):
     def clean_network_balance(self):
         cleaned_data = super(NetworkBalanceLimit, self).clean()
         max_balance = self.cleaned_data.get('max_balance', None)
-        max_unsuccessful_transaction = self.cleaned_data.\
-            get('max_unsuccessful_transaction', None)
-        if  max_balance == "" and max_unsuccessful_transaction == "":
+        max_unsuccessful_transaction = self.cleaned_data.get(
+            'max_unsuccessful_transaction', None)
+        if max_balance == "" and max_unsuccessful_transaction == "":
             raise forms.ValidationError('Error : please provide value.')
-        if max_balance !="":
-            if( float(max_balance) <= 0):
+        if max_balance != "":
+            if float(max_balance) <= 0:
                 raise forms.ValidationError(
-                    'Error : enter positive and non-zero value ' \
-                    'for maximum balance Limit.')
+                    'Error : enter positive and non-zero value for '
+                    'maximum balance Limit.')
         return cleaned_data
-
