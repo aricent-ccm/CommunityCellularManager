@@ -446,6 +446,8 @@ class NetworkSelectView(ProtectedView):
         user_profile = models.UserProfile.objects.get(user=request.user)
         try:
             network = models.Network.objects.get(pk=network_id)
+            if 'sync_status' in request.session:
+                del request.session['sync_status']
         except models.Network.DoesNotExist:
             return http.HttpResponseBadRequest()
 
@@ -466,8 +468,16 @@ class NetworkDenomination(ProtectedView):
         network = user_profile.network
         currency = network.subscriber_currency
 
+        sync_status = False
+        if 'sync_status' in request.session:
+            sync_status = request.session['sync_status']
+        else:
+            self.sync_denomination(network.id, 'discard')
+            request.session['sync_status'] = sync_status
+
         # Count the associated denomination with selected network.
-        denom = models.NetworkDenomination.objects.filter(network=network)
+        denom = models.NetworkDenomination.objects.filter(
+            network=network, status__in=['done', 'pending'])
         denom_count = denom.count()
 
         dnm_id = request.GET.get('id', None)
@@ -492,20 +502,17 @@ class NetworkDenomination(ProtectedView):
 
         invalid_ranges = []
         max_denominations = 0
-        merge = request.GET.get('merge', None)
+        denom_delta = 1000
         for denomination in denom:
-            if denomination.start_amount > (max_denominations+1000):
+            if denomination.start_amount > (max_denominations+denom_delta):
                 start_range = humanize_credits(max_denominations,
                                                CURRENCIES[currency]).amount
                 end_range = humanize_credits(denomination.start_amount,
                                              CURRENCIES[currency]).amount
-                if merge:
-                    denomination.start_amount = max_denominations+1000
-                    denomination.save()
-                else:
-                    invalid_ranges.append({"start": start_range,
-                                           "end": end_range})
+                invalid_ranges.append({"start": start_range, "end": end_range})
             max_denominations = denomination.end_amount
+        next_start_amount = humanize_credits(max_denominations+denom_delta,
+                                             CURRENCIES[currency]).amount
 
         # Configure the table of denominations. Do not show any pagination
         # controls if the total number of donominations is small.
@@ -529,7 +536,9 @@ class NetworkDenomination(ProtectedView):
             'number_country': NUMBER_COUNTRIES[network.number_country],
             'denomination': denom_count,
             'denominations_table': denom_table,
-            'invalid_ranges': invalid_ranges
+            'invalid_ranges': invalid_ranges,
+            'next_start_amount': next_start_amount,
+            'sync_status': sync_status
         }
         # Render template.
         info_template = template.loader.get_template(
@@ -546,6 +555,16 @@ class NetworkDenomination(ProtectedView):
         user_profile = models.UserProfile.objects.get(user=request.user)
         network = user_profile.network
         try:
+            sync = request.GET.get('sync', False)
+            if sync:
+                self.sync_denomination(network.id, 'apply')
+                request.session['sync_status'] = False
+                messages.success(
+                    request, 'New denomination changes applied successfully.',
+                    extra_tags='alert alert-success')
+                return http.HttpResponse(json.dumps({'status': 'ok'}),
+                                         content_type="application/json")
+
             currency = network.subscriber_currency
             start_amount_raw = request.POST.get('start_amount')
             start_amount = parse_credits(start_amount_raw,
@@ -585,13 +604,14 @@ class NetworkDenomination(ProtectedView):
                 if dnm_id > 0:
                     try:
                         denom = models.NetworkDenomination.objects.get(
-                            id=dnm_id)
+                            id=dnm_id, status__in=['done', 'pending'])
                         # Check for existing denomination range exist.
                         denom_exists = \
                           models.NetworkDenomination.objects.filter(
                               end_amount__gte=start_amount,
                               start_amount__lte=end_amount,
-                              network=user_profile.network).exclude(
+                              network=user_profile.network,
+                              status__in=['done', 'pending']).exclude(
                                   id=dnm_id).count()
                         if denom_exists:
                             messages.error(
@@ -599,11 +619,18 @@ class NetworkDenomination(ProtectedView):
                                 extra_tags='alert alert-danger')
                             return redirect(
                                 urlresolvers.reverse('network-denominations'))
-                        denom.network = user_profile.network
-                        denom.start_amount = start_amount
-                        denom.end_amount = end_amount
-                        denom.validity_days = validity_days
+                        denom.status = 'deleted'
                         denom.save()
+                        # Create new denomination for updated record
+                        new_denom = models.NetworkDenomination(
+                            network=user_profile.network)
+                        new_denom.network = user_profile.network
+                        new_denom.start_amount = start_amount
+                        new_denom.end_amount = end_amount
+                        new_denom.validity_days = validity_days
+                        new_denom.status = 'pending'
+                        new_denom.save()
+                        request.session['sync_status'] = True
                         messages.success(
                             request, 'Denomination is updated successfully.',
                             extra_tags='alert alert-success')
@@ -618,7 +645,8 @@ class NetworkDenomination(ProtectedView):
                     denom_exists = models.NetworkDenomination.objects.filter(
                         end_amount__gte=start_amount,
                         start_amount__lte=end_amount,
-                        network=user_profile.network).count()
+                        network=user_profile.network,
+                        status__in=['done', 'pending']).count()
                     if denom_exists:
                         messages.error(
                             request, 'Denomination range already exists.',
@@ -632,7 +660,9 @@ class NetworkDenomination(ProtectedView):
                     denom.start_amount = start_amount
                     denom.end_amount = end_amount
                     denom.validity_days = validity_days
+                    denom.status = 'pending'
                     denom.save()
+                    request.session['sync_status'] = True
                     messages.success(
                         request, 'Denomination is created successfully.',
                         extra_tags='alert alert-success')
@@ -644,7 +674,8 @@ class NetworkDenomination(ProtectedView):
         return redirect(urlresolvers.reverse('network-denominations'))
 
     def delete(self, request):
-        """Handles delete requests."""
+        """soft delete denominations, this can be commit/rollback by
+        sync_denomination() as per request."""
         response = {
             'status': 'ok',
             'messages': [],
@@ -652,22 +683,42 @@ class NetworkDenomination(ProtectedView):
         dnm_ids = request.GET.getlist('ids[]') or False
         if dnm_ids:
             try:
-                denom = models.NetworkDenomination.objects.filter(
-                    id__in=dnm_ids)
-                for denomination in denom:
-                    denomination.delete()
+                models.NetworkDenomination.objects.filter(
+                    id__in=dnm_ids).update(status='deleted')
+                request.session['sync_status'] = True
                 response['status'] = 'success'
                 messages.success(request, 'Denomination deleted successfully.',
                                  extra_tags='alert alert-success')
             except models.NetworkDenomination.DoesNotExist:
                 response['status'] = 'failed'
-                messages.error(
-                    request, 'Invalid denomination ID.',
+                messages.error( request, 'Invalid denomination ID.',
                     extra_tags='alert alert-danger')
         else:
             response['status'] = 'failed'
-            messages.error(
-                request, 'Invalid request data.',
+            messages.error(request, 'Invalid request data.',
                 extra_tags='alert alert-danger')
         return http.HttpResponse(json.dumps(response),
                                  content_type="application/json")
+
+    def sync_denomination(self, network_id, status):
+        """ Rebase denomination table remove pending changes. """
+        if status == 'apply':
+            with transaction.atomic():
+                models.NetworkDenomination.objects.filter(
+                    network=network_id,
+                    status__in=['pending']).update(status='done')
+                deleted_denom = models.NetworkDenomination.objects.filter(
+                    status__in=['deleted'])
+                for denomination in deleted_denom:
+                    denomination.delete()
+        if status == 'discard':
+            with transaction.atomic():
+                new_denom = models.NetworkDenomination.objects.filter(
+                    status__in=['pending'])
+                for denomination in new_denom:
+                    denomination.delete()
+                deleted_denom = models.NetworkDenomination.objects.filter(
+                    status__in=['deleted'])
+                for denomination in deleted_denom:
+                    denomination.status = 'done'
+                    denomination.save()
