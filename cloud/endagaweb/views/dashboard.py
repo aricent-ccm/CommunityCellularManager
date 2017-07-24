@@ -269,10 +269,10 @@ def subscriber_list_view(request):
         try:
             update_imsi = Subscriber.objects.filter(imsi__in=subscriber_imsi_list)
             update_imsi.update(role=subscriber_role)
-            reponse_message = "Subscriber role updated successfully."
+            response_message = "Subscriber role updated successfully."
         except Exception as e:
-            reponse_message = "Subscriber role update fail."
-        return HttpResponse(reponse_message)
+            response_message = "Subscriber role update fail."
+        return HttpResponse(response_message)
 
 
 class SubscriberInfo(ProtectedView):
