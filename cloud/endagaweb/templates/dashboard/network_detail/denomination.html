@@ -48,7 +48,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                 <a href="#" class="close" data-dismiss="alert" aria-label="close">×</a>
                 <p>
                     <i class="fa fa-exclamation-triangle" aria-hidden="true"></i>
-                    <strong>Error!</strong> There is a gap in denomination brackets. Add/edit denominations to fill the below gaps. Changes are not saved yet until you confirm the final submit.
+                    <strong>Error!</strong> There is a gap in denomination brackets. Add/edit denominations to fill the below gaps. Changes will be lost until you confirm the final submit.
                 </p>
                 <p>Gap are {% for range in invalid_ranges %}<span class="badge badge-danger">{{ range.start }} - {{ range.end }}</span> {% endfor %}</p>
             </div>
@@ -62,10 +62,10 @@ of patent rights can be found in the PATENTS file in the same directory.
             </div>
             {% endif %}
             {% for message in messages %}
-            <div class="message alert alert-{{ message.tags }}">
+            <!--div class="message alert alert-{{ message.tags }}">
                 <a href="#" class="close" data-dismiss="alert">&times;</a>
                 {{ message }}
-            </div>
+            </div -->
             {% endfor %}
             <form action="/dashboard/network/denominations" method="POST" name="notification_form" id="notification_form">
             <div class="table-container">
