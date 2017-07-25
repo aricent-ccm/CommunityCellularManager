@@ -505,11 +505,12 @@ class NetworkDenomination(ProtectedView):
         denom_delta = 1000
         for denomination in denom:
             if denomination.start_amount > (max_denominations+denom_delta):
-                start_range = humanize_credits(max_denominations,
+                start_range = humanize_credits((max_denominations+denom_delta),
                                                CURRENCIES[currency]).amount
-                end_range = humanize_credits(denomination.start_amount,
+                end_range = humanize_credits((denomination.start_amount-denom_delta),
                                              CURRENCIES[currency]).amount
-                invalid_ranges.append({"start": start_range, "end": end_range})
+                invalid_ranges.append({"start": start_range,
+                                       "end": end_range})
             max_denominations = denomination.end_amount
         next_start_amount = humanize_credits(max_denominations+denom_delta,
                                              CURRENCIES[currency]).amount
