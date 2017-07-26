@@ -18,7 +18,7 @@ from ccm.common import logger
 from core import interconnect
 from core.config_database import ConfigDB
 from core.federer_handlers import common
-
+from core.subscriber import subscriber
 
 class endaga_sms(common.incoming):
     """
@@ -32,21 +32,35 @@ class endaga_sms(common.incoming):
                         and is insecured?
         """
         # Always send back these headers.
+        # Updated for broadcast sms
         headers = {
             'Content-type': 'text/plain'
         }
         data = web.input()
         needed_fields = ["text", "to", "sender", "msgid"]
+
         if all(i in data for i in needed_fields):
             # Make sure we haven't already seen this message.
             if self.msgid_db.seen(str(data.msgid)):
                 return data.msgid
-            to = str(data.to)
-            from_ = str(data.sender)
-            body = str(data.text)
-            self.fs_ic.send_to_number(to, from_, body)
-            self.bill(to, from_)
-            return web.ok(None, headers)
+            if data.to == "*":
+                imsi_list = subscriber.get_subscriber_imsis()
+                for imsi in imsi_list:
+                    numbers = subscriber.get_numbers_from_imsi(imsi)
+                    for number in numbers:
+                        to = str(number)
+                        from_= str(data.sender)
+                        body = str(data.text)
+                        self.fs_ic.send_to_number(to, from_, body)
+                        self.bill(to, from_)
+                        return web.ok(None, headers)
+            else:
+                to = str(data.to)
+                from_ = str(data.sender)
+                body = str(data.text)
+                self.fs_ic.send_to_number(to, from_, body)
+                self.bill(to, from_)
+                return web.ok(None, headers)
         else:
             return web.badrequest(None, headers)
 
