@@ -1486,6 +1486,7 @@ class NetworkDenomination(models.Model):
 
     class Meta:
         ordering = ('start_amount',)
+        default_permissions = ()
 
 
 class ConfigurationKey(models.Model):

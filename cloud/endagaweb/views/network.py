@@ -459,8 +459,33 @@ class NetworkSelectView(ProtectedView):
         return http.HttpResponseRedirect(request.META.get('HTTP_REFERER', '/dashboard'))
 
 
+def sync_denomination(network_id, status):
+    """ Rebase denomination table remove pending changes. """
+    if status == 'apply':
+        with transaction.atomic():
+            models.NetworkDenomination.objects.filter(
+                network=network_id,
+                status__in=['pending']).update(status='done')
+            deleted_denom = models.NetworkDenomination.objects.filter(
+                status__in=['deleted'])
+            for denomination in deleted_denom:
+                denomination.delete()
+    if status == 'discard':
+        with transaction.atomic():
+            new_denom = models.NetworkDenomination.objects.filter(
+                status__in=['pending'])
+            for denomination in new_denom:
+                denomination.delete()
+            deleted_denom = models.NetworkDenomination.objects.filter(
+                status__in=['deleted'])
+            for denomination in deleted_denom:
+                denomination.status = 'done'
+                denomination.save()
+
+
 class NetworkDenomination(ProtectedView):
     """Assign denominations bracket for recharge/adjust-credit in network."""
+    permission_required = 'view_denomination'
 
     def get(self, request):
         """Handles GET requests."""
@@ -472,7 +497,7 @@ class NetworkDenomination(ProtectedView):
         if 'sync_status' in request.session:
             sync_status = request.session['sync_status']
         else:
-            self.sync_denomination(network.id, 'discard')
+            sync_denomination(network.id, 'discard')
             request.session['sync_status'] = sync_status
 
         # Count the associated denomination with selected network.
@@ -505,14 +530,14 @@ class NetworkDenomination(ProtectedView):
         denom_delta = 1000
         for denomination in denom:
             if denomination.start_amount > (max_denominations+denom_delta):
-                start_range = humanize_credits((max_denominations+denom_delta),
-                                               CURRENCIES[currency]).amount
-                end_range = humanize_credits((denomination.start_amount-denom_delta),
-                                             CURRENCIES[currency]).amount
+                start_range = humanize_credits((max_denominations),
+                                               CURRENCIES[currency]).money_str()
+                end_range = humanize_credits((denomination.start_amount),
+                                             CURRENCIES[currency]).money_str()
                 invalid_ranges.append({"start": start_range,
                                        "end": end_range})
             max_denominations = denomination.end_amount
-        next_start_amount = humanize_credits(max_denominations+denom_delta,
+        next_start_amount = humanize_credits(max_denominations,
                                              CURRENCIES[currency]).amount
 
         # Configure the table of denominations. Do not show any pagination
@@ -547,6 +572,11 @@ class NetworkDenomination(ProtectedView):
         html = info_template.render(context, request)
         return http.HttpResponse(html)
 
+
+class NetworkDenominationEdit(ProtectedView):
+
+    permission_required = 'change_denomination'
+
     def post(self, request):
         """Operators can use this API to add denomination to a network.
 
@@ -558,7 +588,7 @@ class NetworkDenomination(ProtectedView):
         try:
             sync = request.GET.get('sync', False)
             if sync:
-                self.sync_denomination(network.id, 'apply')
+                sync_denomination(network.id, 'apply')
                 request.session['sync_status'] = False
                 messages.success(
                     request, 'New denomination changes applied successfully.',
@@ -575,6 +605,9 @@ class NetworkDenomination(ProtectedView):
                                        CURRENCIES[currency]).amount_raw
             validity_days = int(request.POST.get('validity_days')) or 0
 
+            print "start_amount_raw = ", start_amount_raw
+            print "start_amount = ", start_amount
+
             dnm_id = int(request.POST.get('dnm_id')) or 0
             if validity_days > settings.ENDAGA['MAX_VALIDITY_DAYS']:
                 message = ('Validity days value exceeds maximum permissible '
@@ -584,7 +617,7 @@ class NetworkDenomination(ProtectedView):
                     request, message,
                     extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
-            elif start_amount <= 0 or end_amount <= 0:
+            elif start_amount < 0 or end_amount <= 0:
                 messages.error(request,
                                'Enter value >0 for start/end amount.',
                                extra_tags='alert alert-danger')
@@ -609,8 +642,8 @@ class NetworkDenomination(ProtectedView):
                         # Check for existing denomination range exist.
                         denom_exists = \
                           models.NetworkDenomination.objects.filter(
-                              end_amount__gte=start_amount,
-                              start_amount__lte=end_amount,
+                              end_amount__gte=start_amount+1,
+                              start_amount__lte=end_amount-1,
                               network=user_profile.network,
                               status__in=['done', 'pending']).exclude(
                                   id=dnm_id).count()
@@ -644,8 +677,8 @@ class NetworkDenomination(ProtectedView):
                 else:
                     # Check for existing denomination range exist.
                     denom_exists = models.NetworkDenomination.objects.filter(
-                        end_amount__gte=start_amount,
-                        start_amount__lte=end_amount,
+                        end_amount__gte=start_amount+1,
+                        start_amount__lte=end_amount-1,
                         network=user_profile.network,
                         status__in=['done', 'pending']).count()
                     if denom_exists:
@@ -700,26 +733,3 @@ class NetworkDenomination(ProtectedView):
                 extra_tags='alert alert-danger')
         return http.HttpResponse(json.dumps(response),
                                  content_type="application/json")
-
-    def sync_denomination(self, network_id, status):
-        """ Rebase denomination table remove pending changes. """
-        if status == 'apply':
-            with transaction.atomic():
-                models.NetworkDenomination.objects.filter(
-                    network=network_id,
-                    status__in=['pending']).update(status='done')
-                deleted_denom = models.NetworkDenomination.objects.filter(
-                    status__in=['deleted'])
-                for denomination in deleted_denom:
-                    denomination.delete()
-        if status == 'discard':
-            with transaction.atomic():
-                new_denom = models.NetworkDenomination.objects.filter(
-                    status__in=['pending'])
-                for denomination in new_denom:
-                    denomination.delete()
-                deleted_denom = models.NetworkDenomination.objects.filter(
-                    status__in=['deleted'])
-                for denomination in deleted_denom:
-                    denomination.status = 'done'
-                    denomination.save()

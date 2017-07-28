@@ -158,7 +158,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                         Create Denomination
                     </h4>
                 </div>
-                <form action="/dashboard/network/denominations" id="network_form" name="network_form" method="POST"
+                <form action="/dashboard/network/denominations/manage" id="network_form" name="network_form" method="POST"
                           data-toggle="validator" class="form-horizontal">{% csrf_token %}
                     <div class='modal-body'>
                         <div class="form-group row">
@@ -190,7 +190,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                                 </label>
                                 <div class="input-group col-xs-8">
                                     <input type="hidden" id="next_start_amount" value="{{ next_start_amount }}">
-                                    <input class="form-control" type="text" id="validity_days" name="validity_days" autocomplete="off"
+                                    <input class="form-control number" type="text" id="validity_days" name="validity_days" autocomplete="off"
                                            placeholder="Enter validity as number of days" required/>
                                 </div>
                             </div>
@@ -229,48 +229,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                     $('.actions').hide();
                 }
             });
-            $('.number').keypress(function (event) {
-                var $this = $(this);
-                if ((event.which != 46 || $this.val().indexOf('.') != -1) &&
-                    ((event.which < 48 || event.which > 57) &&
-                    (event.which != 0 && event.which != 8))) {
-                    event.preventDefault();
-                }
-
-                var text = $(this).val();
-                if(text.length>= 10){
-                    event.preventDefault();
-                    return;
-                }
-                if ((event.which == 46) && (text.indexOf('.') == -1)) {
-                    setTimeout(function () {
-                        if ($this.val().substring($this.val().indexOf('.')).length > 3) {
-                            $this.val($this.val().substring(0, $this.val().indexOf('.') + 3));
-                        }
-                    }, 1);
-                }
-
-                if ((text.indexOf('.') != -1) &&
-                    (text.substring(text.indexOf('.')).length > 2) &&
-                    (event.which != 0 && event.which != 8) &&
-                    ($(this)[0].selectionStart >= text.length - 2)) {
-                    event.preventDefault();
-                }
-            });
-
-            $('.number').bind("paste", function (e) {
-                var text = e.originalEvent.clipboardData.getData('Text');
-                if ($.isNumeric(text)) {
-                    if ((text.substring(text.indexOf('.')).length > 3) && (text.indexOf('.') > -1)) {
-                        e.preventDefault();
-                        $(this).val(text.substring(0, text.indexOf('.') + 3));
-                    }
-                }
-                else {
-                    e.preventDefault();
-                }
-            });
-            $("#validity_days").keydown(function (e) {
+            $('.number').keydown(function (e) {
                 // Allow: backspace, delete, tab, escape and enter
                 if ($.inArray(e.keyCode, [46, 8, 9, 27, 13, 110]) !== -1 ||
                     // Allow: Ctrl+A, Command+A
@@ -285,7 +244,6 @@ of patent rights can be found in the PATENTS file in the same directory.
                     e.preventDefault();
                 }
             });
-
             $('#network_form').validate({
                 highlight: function (element) {
                     $(element).closest('.form-group').addClass('has-error');
@@ -318,7 +276,7 @@ of patent rights can be found in the PATENTS file in the same directory.
             //$('#id_pk').val(0);
             $('#dnm_id').val(0);
             if($('#next_start_amount').val()) {
-                $('#start_amount').val($('#next_start_amount').val());
+                $('#start_amount').val(parseInt($('#next_start_amount').val()));
                 //$('#start_amount').val($('#next_start_amount').val()).attr({'readonly': 'readonly'});
             }
             $('#end_amount').val('');
@@ -338,7 +296,7 @@ of patent rights can be found in the PATENTS file in the same directory.
                         $(".form-group").removeClass("has-error");
 
                         $('#dnm_id').val(response.data.id);
-                        $('#start_amount').val(response.data.start_amount);
+                        $('#start_amount').val(parseInt(response.data.start_amount));
                         $('#end_amount').val(response.data.end_amount);
                         $('#validity_days').val(response.data.validity_days);
                         $('.popup-heading').html("Edit Denomination");
@@ -366,7 +324,7 @@ of patent rights can be found in the PATENTS file in the same directory.
             });
             // Post to the endagaweb API.
             $.ajax({
-                url: '/dashboard/network/denominations?'+$.param({'ids': ids}),
+                url: '/dashboard/network/denominations/manage?'+$.param({'ids': ids}),
                 type: 'DELETE',
                 beforeSend: function (xhr) {
                     xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
@@ -388,7 +346,7 @@ of patent rights can be found in the PATENTS file in the same directory.
         $('#sync-confirm').click(function () {
             // Post to the endagaweb API.
             $.ajax({
-                url: '/dashboard/network/denominations?sync=1',
+                url: '/dashboard/network/denominations/manage?sync=1',
                 type: 'POST',
                 beforeSend: function (xhr) {
                     xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
