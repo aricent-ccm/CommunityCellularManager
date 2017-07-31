@@ -526,10 +526,9 @@ class NetworkDenomination(ProtectedView):
                                      content_type="application/json")
 
         invalid_ranges = []
-        max_denominations = 0
-        denom_delta = 1000
+        max_denominations = 100000
         for denomination in denom:
-            if denomination.start_amount > (max_denominations+denom_delta):
+            if denomination.start_amount > (max_denominations):
                 start_range = humanize_credits((max_denominations),
                                                CURRENCIES[currency]).money_str()
                 end_range = humanize_credits((denomination.start_amount),
@@ -605,9 +604,6 @@ class NetworkDenominationEdit(ProtectedView):
                                        CURRENCIES[currency]).amount_raw
             validity_days = int(request.POST.get('validity_days')) or 0
 
-            print "start_amount_raw = ", start_amount_raw
-            print "start_amount = ", start_amount
-
             dnm_id = int(request.POST.get('dnm_id')) or 0
             if validity_days > settings.ENDAGA['MAX_VALIDITY_DAYS']:
                 message = ('Validity days value exceeds maximum permissible '
@@ -617,9 +613,9 @@ class NetworkDenominationEdit(ProtectedView):
                     request, message,
                     extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
-            elif start_amount < 0 or end_amount <= 0:
+            elif start_amount < 1 or end_amount <= 1:
                 messages.error(request,
-                               'Enter value >0 for start/end amount.',
+                               'Enter value >= 1 for start amount.',
                                extra_tags='alert alert-danger')
                 return redirect(urlresolvers.reverse('network-denominations'))
             elif validity_days <= 0:
