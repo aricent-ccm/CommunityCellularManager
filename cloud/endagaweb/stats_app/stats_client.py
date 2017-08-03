@@ -25,9 +25,7 @@ CALL_KINDS = [
 SMS_KINDS = [
     'local_sms', 'local_recv_sms', 'outside_sms', 'incoming_sms', 'free_sms',
     'error_sms']
-WATERFALL_KINDS = ['loader', 'reload_rate', 'reload_amount',
-                   'reload_transaction', 'average_frequency']
-USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs'] + WATERFALL_KINDS
+USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs']
 TIMESERIES_STAT_KEYS = [
     'ccch_sdcch4_load', 'tch_f_max', 'tch_f_load', 'sdcch8_max', 'tch_f_pdch_load', 'tch_f_pdch_max', 'tch_h_load', 'tch_h_max', 'sdcch8_load', 'ccch_sdcch4_max',
     'sdcch_load', 'sdcch_available', 'tchf_load', 'tchf_available',
@@ -391,17 +389,15 @@ class WaterfallStatsClient(StatsClientBase):
             end = datetime.fromtimestamp(time.time(), pytz.utc)
 
         response = {'header': [{'label': "Months", 'name': 'month',
-                                'frozen': 'true'},
-                               {'label': "Activation", 'name': 'activation',
-                                'frozen': 'true', 'align': 'center'}],
+                                'frozen': True},
+                               {'label': "Subscriber Activation",
+                                'name': 'activation', 'frozen': True}],
                     'data': []};
 
         months = rrule(MONTHLY, dtstart=start, until=end)
         for mnth in months:
             key = mnth.strftime("%b") + "-" + mnth.strftime("%Y")
-            response['header'].append({'label': key,
-                                       'name': key,
-                                       'align': 'center'})
+            response['header'].append({'label': key, 'name': key})
 
             # Get last/first date of month from selected month
             next_month = mnth.replace(day=28) + timedelta(days=4)
@@ -410,8 +406,8 @@ class WaterfallStatsClient(StatsClientBase):
 
             kwargs['start_time_epoch'] = int(stats_start_dt.strftime("%s"))
             kwargs['end_time_epoch'] = int(stats_end_dt.strftime("%s"))
-            kwargs['query'] = Q(subscriber__role='retailer')
-            kind_key = 'provisioned'
+            kwargs['query'] = Q(subscriber__role='subscriber')
+            kind_key = 'Provisioned'
             kwargs['report_view'] = 'value'
             subscribers = self.aggregate_timeseries(kind_key, **kwargs)
 
@@ -425,28 +421,97 @@ class WaterfallStatsClient(StatsClientBase):
 
                 kwargs['start_time_epoch'] = int(month_start_dt.strftime("%s"))
                 kwargs['end_time_epoch'] = int(month_end_dt.strftime("%s"))
-                if kind == 'loader':
+                kwargs['query'] = Q(subscriber_id__in=subscribers)
+                if kind in ['loader', 'reload_rate']:
                     kwargs['aggregation'] = 'loader'
                     kwargs['report_view'] = 'value'
-                elif kind == 'reload_transaction':
+                elif kind in ['reload_transaction', 'average_frequency']:
                     kwargs['aggregation'] = 'count'
                     kwargs['report_view'] = 'summary'
-                elif kind == 'reload_amount':
-                    kwargs['aggregation'] = 'transaction_sum'
+                elif kind in ['reload_amount', 'average_load']:
+                    kwargs['aggregation'] = 'reload_transcation_sum'
                     kwargs['report_view'] = 'summary'
-                elif kind == 'reload_rate':
-                    kwargs['aggregation'] = 'transaction_sum'
-                    kwargs['report_view'] = 'summary'
-                elif kind == 'average_frequency':
-                    kwargs['aggregation'] = 'transaction_sum'
-                    kwargs['report_view'] = 'summary'
-                kwargs['query'] = Q(subscriber_id__in=subscribers)
-                kind_row = 'transfer'
-                result = self.aggregate_timeseries(kind_row, **kwargs)
 
+                result = self.aggregate_timeseries('transfer', **kwargs)
                 if isinstance(result, (list, tuple)):
-                    month_row.update({col_key: len(result)})
-                else:
-                    month_row.update({col_key: result})
+                    result = len(result)
+
+                if kind == 'reload_rate':
+                    try:
+                        pers = round(float(result) / len(subscribers), 2) * 100
+                    except:
+                        pers = 0
+                    result = str(pers) + " %"
+                elif kind in ['average_load', 'average_frequency']:
+                    kwargs['aggregation'] = 'loader'
+                    kwargs['report_view'] = 'value'
+                    loader = self.aggregate_timeseries('transfer', **kwargs)
+                    if isinstance(loader, (list, tuple)):
+                        loader = len(loader)
+                    try:
+                        result = round(float(result) / float(loader), 2)
+                    except:
+                        result = 0
+                month_row.update({col_key: result})
             response['data'].append(month_row)
+        return response
+
+
+class NonLoaderStatsClient(StatsClientBase):
+    """ waterfall reports data """
+
+    def __init__(self, *args, **kwargs):
+        super(NonLoaderStatsClient, self).__init__(*args, **kwargs)
+
+    def timeseries(self, kind=None, **kwargs):
+        # Get report data in timeseries format
+        # Oldest subscriber provision date
+        start_time_epoch = 1406680050
+        last_month = datetime.fromtimestamp(time.time(),
+                                            pytz.utc) - timedelta(days=30)
+        end_epoch = last_month.replace(day=calendar.monthrange(
+            last_month.year, last_month.month)[1])
+        start_epoch = end_epoch - timedelta(6 * 365 / 12)
+
+        response = {'header': [{'label': "Months", 'name': 'month',
+                                'frozen': True},
+                               # {'label': "Activation", 'name': 'activation',
+                               # 'frozen': True},
+                               {'label': "Non Loader", 'name': 'nonloader',
+                                'frozen': True}],
+                    'data': []};
+
+        months = list(rrule(MONTHLY, dtstart=start_epoch, until=end_epoch))
+        months.sort(reverse=True)
+        kwargs2 = kwargs
+
+        counter = 1
+
+        for mnth in months:
+            key = mnth.strftime("%b") + "-" + mnth.strftime("%Y")
+
+            # Get last/first date of month from selected month
+            next_month = mnth.replace(day=28) + timedelta(days=4)
+            stats_end_dt = next_month - timedelta(days=next_month.day)
+            stats_start_dt = mnth.replace(day=1)
+
+            kwargs[
+                'start_time_epoch'] = start_time_epoch  # int(stats_start_dt.strftime("%s"))
+            kwargs['end_time_epoch'] = int(stats_end_dt.strftime("%s"))
+            kwargs['query'] = Q(subscriber__role='retailer')
+            kwargs['report_view'] = 'value'
+            subscribers = self.aggregate_timeseries('Provisioned', **kwargs)
+
+            kwargs2['start_time_epoch'] = int(stats_start_dt.strftime("%s"))
+            kwargs2['end_time_epoch'] = int(end_epoch.strftime("%s"))
+            kwargs2['query'] = Q(subscriber__role='retailer')
+            kwargs2['aggregation'] = 'count'
+            kwargs2['report_view'] = 'summary'
+
+            result = self.aggregate_timeseries('transfer', **kwargs2)
+            month_row = {'month': "%d months" % (counter),
+                         # 'activation': len(subscribers),
+                         'nonloader': result - len(subscribers)}
+            response['data'].append(month_row)
+            counter += 1
         return response
