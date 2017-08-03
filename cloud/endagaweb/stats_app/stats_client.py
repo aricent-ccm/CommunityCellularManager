@@ -25,10 +25,7 @@ CALL_KINDS = [
 SMS_KINDS = [
     'local_sms', 'local_recv_sms', 'outside_sms', 'incoming_sms', 'free_sms',
     'error_sms']
-SUBSCRIBER_KINDS = ['Provisioned', 'deactivate_number']
-ZERO_BALANCE_SUBSCRIBER = ['zero_balance_subscriber']
-INACTIVE_SUBSCRIBER = ['expired', 'first_expired', 'blocked']
-USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs'] + SUBSCRIBER_KINDS
+USAGE_EVENT_KINDS = CALL_KINDS + SMS_KINDS + ['gprs']
 TIMESERIES_STAT_KEYS = [
     'ccch_sdcch4_load', 'tch_f_max', 'tch_f_load', 'sdcch8_max', 'tch_f_pdch_load', 'tch_f_pdch_max', 'tch_h_load', 'tch_h_max', 'sdcch8_load', 'ccch_sdcch4_max',
     'sdcch_load', 'sdcch_available', 'tchf_load', 'tchf_available',
@@ -117,14 +114,6 @@ class StatsClientBase(object):
         elif param in TIMESERIES_STAT_KEYS:
             objects = models.TimeseriesStat.objects
             filters = Q(key=param)
-        elif param in ZERO_BALANCE_SUBSCRIBER:
-            objects = models.UsageEvent.objects
-            filters = Q(oldamt__gt=0, newamt__lte=0)
-        elif param in INACTIVE_SUBSCRIBER:
-            aggregation = 'valid_through'
-            objects = models.Subscriber.objects
-            filters = Q(state=param)
-
         # Filter by infrastructure level.
         if self.level == 'tower':
             filters = filters & Q(bts__id=self.level_id)
@@ -147,8 +136,6 @@ class StatsClientBase(object):
         elif aggregation == 'average_value':
             queryset_stats = qsstats.QuerySetStats(
                 queryset, 'date', aggregate=aggregates.Avg('value'))
-        elif aggregation == 'valid_through':
-            queryset_stats = qsstats.QuerySetStats(queryset, 'valid_through')
         else:
             queryset_stats = qsstats.QuerySetStats(queryset, 'date')
         timeseries = queryset_stats.time_series(start, end, interval=interval)
@@ -393,4 +380,50 @@ class SubscriberStatsClient(StatsClientBase):
         if 'aggregation' not in kwargs:
             kwargs['aggregation'] = 'average_value'
         return self.aggregate_timeseries(key, **kwargs)
+
+class BTSStatsClient(StatsClientBase):
+    """Gathers data on BTSStats instances at a tower and network level"""
+
+    def __init__(self, *args, **kwargs):
+        super(BTSStatsClient, self).__init__(*args, **kwargs)
+
+    def timeseries(self, kind=None, **kwargs):
+        results, usage, bts_values = ([] for i in range(3))
+
+        start_time = datetime.fromtimestamp(kwargs['start_time_epoch'],
+                                            pytz.utc)
+
+        # Limit end time to 7 days.
+        kwargs['end_time'] = start_time + timedelta(days=7)
+
+        try:
+            previous_state = models.SystemEvent.objects.filter(
+                bts_id=self.level_id, date__lt=start_time).order_by('-date')[0]
+            previous_state = previous_state.type
+        except IndexError:
+            previous_state = 'bts up'
+
+        for call_kind in BTS_KINDS:
+            # bts up
+            usage = self.aggregate_timeseries(call_kind, **kwargs)
+            values = [u[1] for u in usage]
+            results.append(values)
+        dates = [u[0] for u in usage]
+        # Get last state
+        last_val = None
+        bts_status = [sum(v) for v in zip(*results)]
+        for value in bts_status:
+            if last_val is None:
+                if previous_state == 'bts up':
+                    last_val = 1
+                elif previous_state == 'bts up':
+                    last_val = 0
+                # last_val = value
+            if value > 0:
+                last_val = 1
+            elif value < 0:
+                last_val = 0
+            bts_values.append(last_val)
+        return zip(dates, bts_values)
+
 

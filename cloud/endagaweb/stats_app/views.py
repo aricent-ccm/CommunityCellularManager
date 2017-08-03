@@ -26,11 +26,7 @@ SMS_KINDS = stats_client.SMS_KINDS + ['sms']
 CALL_KINDS = stats_client.CALL_KINDS + ['call']
 GPRS_KINDS = ['total_data', 'uploaded_data', 'downloaded_data']
 TIMESERIES_STAT_KEYS = stats_client.TIMESERIES_STAT_KEYS
-SUBSCRIBER_KINDS = stats_client.SUBSCRIBER_KINDS + \
-                   stats_client.ZERO_BALANCE_SUBSCRIBER + \
-                   stats_client.INACTIVE_SUBSCRIBER
-VALID_STATS = SMS_KINDS + CALL_KINDS + GPRS_KINDS + TIMESERIES_STAT_KEYS + \
-              SUBSCRIBER_KINDS
+VALID_STATS = SMS_KINDS + CALL_KINDS + GPRS_KINDS + TIMESERIES_STAT_KEYS
 # Set valid intervals.
 INTERVALS = ['years', 'months', 'weeks', 'days', 'hours', 'minutes']
 # Set valid aggregation types.
@@ -139,8 +135,6 @@ class StatsAPIView(views.APIView):
                 client_type = stats_client.GPRSStatsClient
             elif stat_type in TIMESERIES_STAT_KEYS:
                 client_type = stats_client.TimeseriesStatsClient
-            elif stat_type in SUBSCRIBER_KINDS:
-                client_type = stats_client.SubscriberStatsClient
             # Instantiate the client at an infrastructure level.
             if infrastructure_level == 'global':
                 client = client_type('global')
