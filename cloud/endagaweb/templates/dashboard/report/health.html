@@ -42,7 +42,10 @@ of patent rights can be found in the PATENTS file in the same directory.
   $(function() {
     setTimeout(function() {
       $('.timezone-notice').fadeIn(500);
+      $("#to-datepicker-call-chart").attr('disabled','disabled');
     }, 800);
+
+
   });
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/0.12.2/react.min.js"></script>
@@ -68,7 +71,7 @@ of patent rights can be found in the PATENTS file in the same directory.
       levelID='{{ level_id }}'
       defaultButtonText='day'
       aggregation='bts_status'
-      buttons={['day','week']}
+      buttons={['']}
       yAxisLabel='STATE'
       currentTimeEpoch={currentTimeEpoch}
       timezoneOffset={timezoneOffset}
@@ -79,6 +82,5 @@ of patent rights can be found in the PATENTS file in the same directory.
     document.getElementById('health-chart')
   );
 </script>
-
 
 {% endblock %}

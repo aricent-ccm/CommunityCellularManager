@@ -552,12 +552,11 @@ class BTSStatsClient(StatsClientBase):
 
     def timeseries(self, kind=None, **kwargs):
         results, usage, bts_values = ([] for i in range(3))
-
         start_time = datetime.fromtimestamp(kwargs['start_time_epoch'],
                                             pytz.utc)
-
         # Limit end time to 7 days.
-        kwargs['end_time'] = start_time + timedelta(days=7)
+        new_end_time = start_time + timedelta(days=7)
+        kwargs['end_time_epoch'] = time.mktime(new_end_time.timetuple())
 
         try:
             previous_state = models.SystemEvent.objects.filter(
