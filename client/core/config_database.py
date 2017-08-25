@@ -154,7 +154,9 @@ def set_defaults(force_replace=False):
         'external_interface': 'tun0',
         # The internal interface is the NIC used by the BSC/BTS to address this
         # system
-        'internal_interface': 'lo'
+        'internal_interface': 'lo',
+        # network max balance
+        'network_max_balance_limt':10000
 
 
     }

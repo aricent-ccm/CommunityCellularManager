@@ -389,6 +389,8 @@ class CheckinResponder(object):
         # pylint: disable=no-member
         result['endaga']['number_country'] = self.bts.network.number_country
         result['endaga']['currency_code'] = self.bts.network.subscriber_currency
+        result['endaga']['network_max_balance_limt'] = self.bts.network.max_balance
+        logging.info('check network balance : %s' % result['endaga']['network_max_balance_limt'])
         # Get the latest versions available on each channel.
         latest_stable_version = ClientRelease.objects.filter(
             channel='stable').order_by('-date')[0].version
