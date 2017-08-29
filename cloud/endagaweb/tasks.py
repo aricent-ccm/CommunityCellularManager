@@ -48,7 +48,7 @@ from endagaweb.models import NetworkDenomination
 from endagaweb.models import TimeseriesStat, UserProfile
 from endagaweb.ic_providers.nexmo import NexmoProvider
 from ccm.common import crdt
-from endagaweb.settings.prod import TEMPLATES_PATH
+from endagaweb.settings.prod import TEMPLATES_PATH, USE_I18N, LANGUAGES, LOCALE_PATHS
 
 
 @app.task(bind=True)
@@ -631,20 +631,44 @@ def block_user(self):
         print '%s user is Blocked!' % user_profile.user.username
         user_profile.user.save()
 
+
 @app.task(bind=True)
-def translate(self, message, retry_delay=60*10, max_retries=432):
+def translate(self, message, url, retry_delay=60*10, max_retries=432):
     """Tries to write notification message for translation.
 
     The default retry is every 10 min for 3 days.
     """
+    print "TRANSLATION - attempting to send POST request to endpoint '%s'" % url
+    try:
+        translation_files = []
+        for lang in LANGUAGES:
+            po_path = LOCALE_PATHS[0] + '/' + lang[
+                0] + '/LC_MESSAGES/django.po'
+            file = ('locale', ('cloud.po', open(po_path, 'rb'), 'text/plain'))
+            translation_files.append(file)
+
+        r = requests.post(url, data={'status':'translation-files'},
+                          files=translation_files,
+                          timeout=settings.ENDAGA['BTS_REQUEST_TIMEOUT_SECS'])
+        if r.status_code >= 200 and r.status_code < 300:
+            print "async_post SUCCESS. url: '%s' (%d). Response was: %s" % (
+                r.url, r.status_code, r.text)
+            return r.status_code
+        else:
+            print "async_post FAIL. url: '%s' (%d). Response was: %s" % (
+                r.url, r.status_code, r.text)
+            raise ValueError(r.status_code)
+    except Exception as exception:
+        print "translate ERROR. url: '%s' exception: %s" % (url, exception)
+        raise
+
     print "writing network notification message for translation '%s'"
     try:
-        translation_file = "/dashboard/network_detail/translate.html"
-        handle = open(TEMPLATES_PATH + translation_file, 'a+')
+        handle = open(TEMPLATES_PATH + "/translate.html", 'a+')
         handle.write('{% trans "' + message + '" %}\r\n')
         handle.close()
         subprocess.Popen(
-            ['python', 'manage.py', 'makemessages', '-l', 'en', '-l', 'fil'])
+            ['python', 'manage.py', 'makemessages', '-a'])
         subprocess.Popen(['python', 'manage.py', 'compilemessages'])
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
         raise self.retry(countdown=retry_delay, max_retries=max_retries)
