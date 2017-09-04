@@ -8,7 +8,7 @@
 from freeswitch import consoleLog
 
 from core.sms import sms
-from core.subscriber import subscriber
+
 
 def chat(message, args):
     args = args.split('|')
@@ -18,21 +18,12 @@ def chat(message, args):
     to = args[0]
     fromm = args[1]
     text = args[2]
-    if to == '*' or to == '':
-        imsi_list = subscriber.get_subscriber_imsis()
-        consoleLog('info', 'Broadcast SMS to IMISs %s : \n' % (imsi_list))
-        for imsi in imsi_list:
-            numbers = subscriber.get_numbers_from_imsi(imsi)
-            for number in numbers:
-                to = str(number)
-                sms.send(to, fromm, text)
-    else:
-        if ((not to or to == '') or
-            (not fromm or fromm == '')):
-            consoleLog('err', 'Malformed Args\n')
-            exit(1)
-        consoleLog('info', 'Args: ' + str(args) + '\n')
-        sms.send(to, fromm, text)
+    if ((not to or to == '') or
+        (not fromm or fromm == '')):
+        consoleLog('err', 'Malformed Args\n')
+        exit(1)
+    consoleLog('info', 'Args: ' + str(args) + '\n')
+    sms.send(to, fromm, text)
 
 
 def fsapi(session, stream, env, args):
