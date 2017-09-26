@@ -145,6 +145,7 @@ class NetworkInactiveSubscribers(ProtectedView):
             'sub_vacuum_form': dashboard_forms.SubVacuumForm({
                 'sub_vacuum_enabled': network.sub_vacuum_enabled,
                 'inactive_days': network.sub_vacuum_inactive_days,
+                'grace_days': network.sub_vacuum_grace_days,
             }),
             'protected_subs': protected_subs,
             'unprotected_subs': unprotected_subs,
@@ -169,17 +170,21 @@ class NetworkInactiveSubscribers(ProtectedView):
             if 'inactive_days' in request.POST:
                 try:
                     inactive_days = int(request.POST['inactive_days'])
+                    grace_days = int(request.POST['grace_days'])
                     if inactive_days > 10000:
                         inactive_days = 10000
+                    if grace_days > 1000:
+                        grace_days = 1000
                     network.sub_vacuum_inactive_days = inactive_days
+                    network.sub_vacuum_grace_days = grace_days
                     network.save()
+                    messages.success(
+                        request, 'Subscriber auto-deletion settings saved.',
+                        extra_tags='alert alert-success')
                 except ValueError:
                     text = 'The "inactive days" parameter must be an integer.'
                     messages.error(request, text,
                                    extra_tags="alert alert-danger")
-            messages.success(
-                request, 'Subscriber auto-deletion settings saved.',
-                extra_tags='alert alert-success')
         return redirect(urlresolvers.reverse('network-inactive-subscribers'))
 
 

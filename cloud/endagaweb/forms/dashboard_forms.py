@@ -208,8 +208,20 @@ class SubVacuumForm(forms.Form):
         label='Automatically delete inactive subscribers',
         help_text=inactive_help_text,
         choices=enabled_choices, widget=forms.RadioSelect())
-    inactive_days = forms.CharField(
-        required=False, label='Outbound inactivity threshold (days)')
+    inactive_days = forms.IntegerField(
+        required=False, label='Outbound inactivity threshold (days)',
+        min_value=0, max_value=10000, widget=
+        forms.TextInput(attrs={'class': 'form-control', 'pattern':'[0-9]+',
+                               'oninvalid':"setCustomValidity('Enter days only!')",
+                               'onchange':"try{"
+                                          "setCustomValidity('')}catch(e){}"}))
+    grace_days = forms.IntegerField(
+        required=False, label='Grace Period (days)', min_value=0,
+        max_value=1000, widget=
+        forms.TextInput(attrs={'class': 'form-control', 'pattern':'[0-9]+',
+                               'oninvalid':"setCustomValidity('Enter days only!')",
+                               'onchange':"try{"
+                                          "setCustomValidity('')}catch(e){}"}))
 
     def __init__(self, *args, **kwargs):
         super(SubVacuumForm, self).__init__(*args, **kwargs)
@@ -221,11 +233,14 @@ class SubVacuumForm(forms.Form):
         # not this feature is active.
         if args[0]['sub_vacuum_enabled']:
             days_field = Field('inactive_days')
+            grace_field = Field('grace_days')
         else:
             days_field = Field('inactive_days', disabled=True)
+            grace_field = Field('grace_days', disabled=True)
         self.helper.layout = Layout(
             'sub_vacuum_enabled',
             days_field,
+            grace_field,
             Submit('submit', 'Save', css_class='pull-right'),
         )
 
