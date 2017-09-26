@@ -59,8 +59,10 @@ OUTBOUND_ACTIVITIES = (
     'outside_call', 'outside_sms', 'local_call', 'local_sms',
 )
 # These UsageEvent events are not allowed block the Subscriber if repeated
-# for 3 times
-INVALID_EVENTS = ('error_call', 'error_sms')
+# more than Maximum Permissible Unsuccessful Transactions
+INVALID_EVENTS = (
+    'error_transfer',
+)
 
 
 class UserProfile(models.Model):
@@ -517,7 +519,7 @@ class Subscriber(models.Model):
     imsi = models.CharField(max_length=50, unique=True)
     name = models.TextField()
     crdt_balance = models.TextField(default=crdt.PNCounter("default").serialize())
-    state = models.CharField(max_length=15)
+    state = models.CharField(max_length=15, default='first_expired')
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
     # Time of the last received UsageEvent that is in OUTBOUND_ACTIVITIES.  We
@@ -530,7 +532,10 @@ class Subscriber(models.Model):
     prevent_automatic_deactivation = models.BooleanField(default=False)
     # Block subscriber if repeated unauthorized events.
     is_blocked = models.BooleanField(default=False)
-    valid_through = models.DateTimeField(null=True, auto_now_add=True)
+    # older validity until first recharge
+    valid_through = models.DateTimeField(null=True,
+                                         default=django.utils.timezone.now() -
+                                                 datetime.timedelta(days=1))
     block_reason = models.TextField(default='N/A', max_length=255)
     last_blocked = models.DateTimeField(null=True, blank=True)
     # role of subscriber

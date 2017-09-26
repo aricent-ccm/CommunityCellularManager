@@ -75,28 +75,40 @@ def process_transfer(from_imsi, to_imsi, amount):
                          " the transfer.")
     # Error when user tries to transfer to a non-existent user.
     #       Could be 0!  Need to check if doesn't exist.
-    if not to_imsi or (subscriber.get_account_balance(to_imsi) == None):
+    if not to_imsi or (subscriber.get_account_balance(to_imsi) is None):
         return False, gt("The number you're sending to doesn't exist."
                          " Try again.")
     # Error when user tries to transfer more credit than network max balance
     network_max_balance = int(config_db['network_max_balance'])
     credit_limit = freeswitch_strings.humanize_credits(network_max_balance)
-    to_balance = int (subscriber.get_account_balance(to_imsi))
+    to_balance = int(subscriber.get_account_balance(to_imsi))
     max_transfer = network_max_balance - to_balance
     max_transfer_str = freeswitch_strings.humanize_credits(max_transfer)
+    from_num = subscriber.get_numbers_from_imsi(from_imsi)[0]
+    to_num = subscriber.get_numbers_from_imsi(to_imsi)[0]
     if to_balance > network_max_balance:
-        return  False, gt("Top-up not allowed. Maximum balance limit crossed"
-                         "%(credit)s.") % {'credit': credit_limit}
+        reason = ("(error_transfer): Top-up not allowed. Maximum balance "
+                  "limit crossed %(credit)s.") % {'credit': credit_limit}
+        events.create_transfer_event(from_imsi, from_balance, from_balance,
+                                     reason, from_num, to_num)
+        return False, gt(reason)
 
     elif (amount + to_balance) > network_max_balance:
-
-        return False, gt("Top-up not allowed.Maximum balance limit crossed."
-                         "%(credit)s.You can transfer upto %(transfer)s.") % \
-               {'credit': credit_limit,'transfer' :max_transfer_str}
+        # Create error_transfer event
+        reason = ("(error_transfer): Top-up not allowed. Maximum balance "
+                  "limit crossed %(credit)s. You can transfer upto "
+                  "%(transfer)s.") % {'credit': credit_limit,
+                                      'transfer': max_transfer_str}
+        events.create_transfer_event(from_imsi, from_balance, from_balance,
+                                     reason, from_num, to_num)
+        return False, gt(reason)
     # check top-up amount in denomination bracket
     validity_days = get_validity_days(amount)
-    if(validity_days == None):
-        return False, gt("Top-up not under denomination range.")
+    if validity_days is None:
+        reason = "(error_transfer): Top-up not under denomination range. "
+        events.create_transfer_event(from_imsi, from_balance, from_balance,
+                                     reason, from_num, to_num)
+        return False, gt(reason)
     # Add the pending transfer.
     code = ''
     for _ in range(int(config_db['code_length'])):

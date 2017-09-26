@@ -30,7 +30,7 @@ def kind_from_reason(reason_str):
              "free_call", "free_sms", "incoming_sms", "error_sms",
              "error_call", "transfer", "add_money", "deduct_money",
              "set_balance", "unknown", "Provisioned", "local_recv_call",
-             "local_recv_sms", "incoming_call", "gprs"]
+             "local_recv_sms", "incoming_call", "gprs", "error_transfer"]
     for t in types:
         if t in reason_str:
             return t
