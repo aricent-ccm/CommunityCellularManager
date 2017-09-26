@@ -156,6 +156,9 @@ urlpatterns = [
     url(r'^dashboard/network/notification$',
         endagaweb.views.network.NetworkNotifications.as_view(),
         name='network-notifications'),
+    url(r'^dashboard/network/notification/manage$',
+        endagaweb.views.network.NetworkNotificationsEdit.as_view(),
+        name='network-notifications-manage'),
     # The activity table.
     url(r'^dashboard/activity',
         endagaweb.views.dashboard.ActivityView.as_view(),
@@ -231,5 +234,3 @@ if 'DatabaseStorage' in settings.DEFAULT_FILE_STORAGE:
         url(r'^file/(?P<fname>.+)$',
             endagaweb.views.file_upload.file_view, name='file-upload')
     ]
-
-

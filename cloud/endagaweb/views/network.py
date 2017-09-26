@@ -657,6 +657,8 @@ class NetworkDenomination(ProtectedView):
 class NetworkNotifications(ProtectedView):
     """Manage event notifications for network. """
 
+    permission_required = 'view_notification'
+
     def get(self, request):
         """Handles GET requests.
         Show event-notification listing page"""
@@ -704,6 +706,11 @@ class NetworkNotifications(ProtectedView):
         html = template.render(context, request)
         return http.HttpResponse(html)
 
+
+class NetworkNotificationsEdit(ProtectedView):
+
+    permission_required = ['edit_notification', 'view_notification']
+
     def post(self, request):
         """Handles POST requests.
         Create/edit/edit notifications."""
@@ -736,7 +743,7 @@ class NetworkNotifications(ProtectedView):
                         # Create new notification
                         notification = models.Notification.objects.create(
                             network=network)
-                        alert_message = 'Notification added successfully!'
+                        alert_message = 'Notification does not exists!'
                     notification.type = type
                     notification.message = message
                     notification.event = event
@@ -751,7 +758,7 @@ class NetworkNotifications(ProtectedView):
                     str(type).title())
                 messages.error(request, alert_message,
                                extra_tags="alert alert-danger")
-                return redirect(urlresolvers.reverse('network-notifications'))
+            return redirect(urlresolvers.reverse('network-notifications'))
         else:
             # Delete the notifications
             records = models.Notification.objects.filter(
