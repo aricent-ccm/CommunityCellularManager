@@ -65,7 +65,8 @@ def process_transfer(from_imsi, to_imsi, amount):
     """
     from_balance = int(subscriber.get_account_balance(from_imsi))
     # Error when blocked or expired user tries to transfer credit
-    from_imsi_status = subscriber.get_account_status(from_imsi)
+    from_imsi_status = subscriber.subscriber_status.get_account_status(
+        from_imsi)
     if from_imsi_status != 'active':
         if from_imsi_status == 'active*':
             status = 'is blocked'

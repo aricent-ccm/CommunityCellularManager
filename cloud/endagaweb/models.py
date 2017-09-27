@@ -788,7 +788,7 @@ class UsageEvent(models.Model):
       downloaded_bytes: number of downloaded bytes for a GPRS event
       timespan: the duration of time over which the GPRS data was sampled
     """
-    transaction_id = models.UUIDField(editable=False, default=uuid.uuid4)
+    transaction_id = models.TextField()
     subscriber = models.ForeignKey(Subscriber, null=True,
                                    on_delete=models.SET_NULL)
     subscriber_imsi = models.TextField(null=True)
@@ -908,12 +908,14 @@ class UsageEvent(models.Model):
                 # block the subscriber
                 negative_transactions_ids = sub_evt .negative_transactions + [
                     event.transaction_id]
-                sub_evt.count = sub_evt .count + 1
+                sub_evt.count = sub_evt.count + 1
                 sub_evt.event_time = event.date
                 sub_evt.negative_transactions = negative_transactions_ids
                 sub_evt.save()
 
                 max_transactions = event.subscriber.network.max_failure_transaction
+                attempts_left = max_transactions - sub_evt.count
+
                 if sub_evt.count >= max_transactions:
                     block_reason = 'Repeated %s within 24 hours ' % (
                         '/'.join(INVALID_EVENTS),)
@@ -926,13 +928,19 @@ class UsageEvent(models.Model):
                     # TODO(sagar): Block duration (30 minutes)
                     # needs to be configurable in unblock task
                     # Send SMS
-                    celery_app.send_task("Your services are blocked for "
-                                         "30 minutes due to repeated wrong "
-                                         "attempts",
+                    celery_app.send_task("Blocked for 30 minutes due to "
+                                         "repeated wrong attempts",
                                          event.subscriber.number_set.all()[0])
                     logger.info('Subscriber %s blocked for 30 minutes, '
                                 'repeated invalid transactions within 24 '
                                 'hours' % event.subscriber_imsi)
+                else:
+                    #SMS notification about attempts left
+                    celery_app.send_task("You attempted %s wrong recharge(s)."
+                                         "Attempts left (%s) before services "
+                                         "get blocked,"
+                                         % (sub_evt.count, attempts_left),
+                                         event.subscriber.number_set.all()[0])
             else:
                 sub_evt = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
@@ -1899,3 +1907,17 @@ class SubscriberInvalidEvents(models.Model):
     count = models.PositiveIntegerField()
     event_time = models.DateTimeField(auto_now_add=True)
     negative_transactions = ArrayField(models.TextField(), null=True)
+
+
+class Notification(models.Model):
+    notification_type = (
+            ('automatic', 'Automatic'),
+            ('mapped', 'Mapped')
+        )
+    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+    event = models.CharField(max_length=100, null=True, unique=True)
+    number = models.CharField(max_length=3, null=True, default=None,
+                              unique=True)
+    message = models.TextField(max_length=160, null=True)
+    type = models.CharField(max_length=10, choices=notification_type,
+                            default='automatic')
