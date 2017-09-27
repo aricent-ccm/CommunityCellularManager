@@ -966,7 +966,7 @@ class BroadcastView(ProtectedView):
             subscribers = []
             for imsi in imsi_list:
                 try:
-                    sub = Subscriber.objects.get(imsi=imsi,network=network_id)
+                    sub = Subscriber.objects.get(imsi=imsi, network=network_id)
                     subscribers.append(sub)
                 except Subscriber.DoesNotExist:
                     invalid_imsi.append(imsi)
