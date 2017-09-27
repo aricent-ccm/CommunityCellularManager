@@ -534,8 +534,8 @@ class Subscriber(models.Model):
     is_blocked = models.BooleanField(default=False)
     # older validity until first recharge
     valid_through = models.DateTimeField(null=True,
-                                         default=django.utils.timezone.now() -
-                                                 datetime.timedelta(days=1))
+                                         default=django.utils.timezone.now()
+                                                 - datetime.timedelta(days=1))
     block_reason = models.TextField(default='N/A', max_length=255)
     last_blocked = models.DateTimeField(null=True, blank=True)
     # role of subscriber
@@ -923,24 +923,32 @@ class UsageEvent(models.Model):
                         # Update time for last max failure trx event only
                         event.subscriber.last_blocked = django.utils.timezone.now()
                     event.subscriber.save()
+                    # TODO(sagar): Block duration (30 minutes)
+                    # needs to be configurable in unblock task
+                    # Send SMS
+                    celery_app.send_task("Your services are blocked for "
+                                         "30 minutes due to repeated wrong "
+                                         "attempts",
+                                         event.subscriber.number_set.all()[0])
                     logger.info('Subscriber %s blocked for 30 minutes, '
                                 'repeated invalid transactions within 24 '
                                 'hours' % event.subscriber_imsi)
             else:
-                subscriber_event = SubscriberInvalidEvents.objects.create(
+                sub_evt = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
-                subscriber_event.event_time = event.date
-                subscriber_event.negative_transactions = [event.transaction_id]
-                subscriber_event.save()
-        elif SubscriberInvalidEvents.objects.filter(
-                subscriber=event.subscriber).count() > 0:
-            # Delete the event if events are non-consecutive
+                sub_evt.event_time = event.date
+                sub_evt.negative_transactions = [event.transaction_id]
+                sub_evt.save()
+        elif SubscriberInvalidEvents.objects.get(
+                subscriber=event.subscriber).exists():
+            # Delete the event if events are non-consecutive keep the event if
+            # until subscriber is unblocked
             if not event.subscriber.is_blocked:
-                subscriber_event = SubscriberInvalidEvents.objects.get(
+                sub_evt = SubscriberInvalidEvents.objects.get(
                     subscriber=event.subscriber)
                 logger.info('Subscriber %s invalid event removed' % (
                     event.subscriber_imsi))
-                subscriber_event.delete()
+                sub_evt.delete()
 
     @staticmethod
     def set_transaction_id(sender, instance=None, **kwargs):
@@ -955,6 +963,7 @@ class UsageEvent(models.Model):
             negative = False
         event.transaction_id = dbutils.format_transaction(instance.date,
                                                           negative)
+
 
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)

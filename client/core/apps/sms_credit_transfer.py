@@ -15,7 +15,6 @@ import re
 import sqlite3
 import time
 
-
 from core import config_database
 from core import events
 from core import freeswitch_strings
@@ -23,7 +22,6 @@ from core.sms import sms
 from core.subscriber import subscriber
 from core.exceptions import SubscriberNotFound
 from core.denomination_store import DenominationStore
-
 
 config_db = config_database.ConfigDB()
 gt = gettext.translation("endaga", config_db['localedir'],
@@ -47,15 +45,12 @@ def _init_pending_transfer_db():
         os.chmod(config_db['pending_transfer_db_path'], 0o777)
 
 def get_validity_days(amount):
-    global validity_days
     denomination = DenominationStore()
     validity_days = denomination.get_validity_days(amount)
-    return validity_days
-
-def get_subscriber_validity(imsi,validity_days):
-    validity = subscriber.subscriber_status.get_subscriber_validity(imsi,validity_days)
-    return validity
-
+    if validity_days is None:
+        return None
+    else:
+        return validity_days[0]
 
 def process_transfer(from_imsi, to_imsi, amount):
     """Process a transfer request.
@@ -69,13 +64,21 @@ def process_transfer(from_imsi, to_imsi, amount):
       boolean indicating success
     """
     from_balance = int(subscriber.get_account_balance(from_imsi))
+    # Error when blocked or expired user tries to transfer credit
+    from_imsi_status = subscriber.get_account_status(from_imsi)
+    if from_imsi_status != 'active':
+        if from_imsi_status == 'active*':
+            status = 'is blocked'
+        else:
+            status = 'has no validity'
+        return False, gt("Your account %s!" % status)
     # Error when user tries to transfer more credit than they have.
     if not from_balance or from_balance < amount:
         return False, gt("Your account doesn't have sufficient funds for"
                          " the transfer.")
     # Error when user tries to transfer to a non-existent user.
     #       Could be 0!  Need to check if doesn't exist.
-    if not to_imsi or (subscriber.get_account_balance(to_imsi) is None):
+    if not to_imsi or (subscriber.get_account_balance(to_imsi) == None):
         return False, gt("The number you're sending to doesn't exist."
                          " Try again.")
     # Error when user tries to transfer more credit than network max balance
@@ -86,28 +89,28 @@ def process_transfer(from_imsi, to_imsi, amount):
     max_transfer_str = freeswitch_strings.humanize_credits(max_transfer)
     from_num = subscriber.get_numbers_from_imsi(from_imsi)[0]
     to_num = subscriber.get_numbers_from_imsi(to_imsi)[0]
+    error_kind = " error_transfer"
     if to_balance > network_max_balance:
-        reason = ("(error_transfer): Top-up not allowed. Maximum balance "
+        reason = ("Top-up not allowed. Maximum balance "
                   "limit crossed %(credit)s.") % {'credit': credit_limit}
         events.create_transfer_event(from_imsi, from_balance, from_balance,
-                                     reason, from_num, to_num)
+                                     reason + error_kind, from_num, to_num)
         return False, gt(reason)
-
     elif (amount + to_balance) > network_max_balance:
         # Create error_transfer event
-        reason = ("(error_transfer): Top-up not allowed. Maximum balance "
+        reason = ("Top-up not allowed. Maximum balance "
                   "limit crossed %(credit)s. You can transfer upto "
                   "%(transfer)s.") % {'credit': credit_limit,
                                       'transfer': max_transfer_str}
         events.create_transfer_event(from_imsi, from_balance, from_balance,
-                                     reason, from_num, to_num)
+                                     reason + error_kind, from_num, to_num)
         return False, gt(reason)
     # check top-up amount in denomination bracket
     validity_days = get_validity_days(amount)
     if validity_days is None:
-        reason = "(error_transfer): Top-up not under denomination range. "
+        reason = "Top-up not under denomination range. "
         events.create_transfer_event(from_imsi, from_balance, from_balance,
-                                     reason, from_num, to_num)
+                                     reason + error_kind, from_num, to_num)
         return False, gt(reason)
     # Add the pending transfer.
     code = ''
@@ -162,7 +165,8 @@ def process_confirm(from_imsi, code):
         events.create_transfer_event(to_imsi, to_imsi_old_credit,
                                      to_imsi_new_credit, reason,
                                      from_number=from_num, to_number=to_num)
-        top_up_validity = get_subscriber_validity(to_imsi, validity_days[0])
+        top_up_validity = subscriber.subscriber_status.\
+            get_subscriber_validity( to_imsi, get_validity_days(amount))
         subscriber.add_credit(to_imsi, str(int(amount)))
         # Humanize credit strings
         amount_str = freeswitch_strings.humanize_credits(amount)
@@ -176,8 +180,7 @@ def process_confirm(from_imsi, code):
                      " Your new balance is %(new_balance)s.Your top-up "
                      "validity is %(validity)s days.") % {
                      'amount': amount_str, 'from_num': from_num,
-                     'new_balance': to_balance_str,
-                     'validity' : top_up_validity}
+                     'new_balance': to_balance_str, 'validity': top_up_validity}
         sms.send(str(to_num), str(config_db['app_number']), str(message))
         # Remove this particular the transfer as it's no longer pending.
         db.execute("DELETE FROM pending_transfers WHERE code=?"
@@ -220,9 +223,10 @@ def handle_incoming(from_imsi, request):
         # Translate everything into IMSIs.
         try:
             to_imsi = subscriber.get_imsi_from_number(to_number)
-            _, resp = process_transfer(from_imsi, to_imsi, amount)
+            _, resp, = process_transfer(from_imsi, to_imsi, amount)
         except SubscriberNotFound:
-            resp = gt("Invalid phone number: %(number)s" % {'number': to_number})
+            resp = gt(
+                "Invalid phone number: %(number)s" % {'number': to_number})
     elif confirm:
         # The code is the whole request, so no need for groups.
         code = request.strip()
