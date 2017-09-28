@@ -65,7 +65,7 @@ def process_transfer(from_imsi, to_imsi, amount):
     """
     from_balance = int(subscriber.get_account_balance(from_imsi))
     # Error when blocked or expired user tries to transfer credit
-    from_imsi_status = subscriber.subscriber_status.get_account_status(
+    from_imsi_status = subscriber.status.get_account_status(
         from_imsi)
     if from_imsi_status != 'active':
         if from_imsi_status == 'active*':
@@ -166,8 +166,8 @@ def process_confirm(from_imsi, code):
         events.create_transfer_event(to_imsi, to_imsi_old_credit,
                                      to_imsi_new_credit, reason,
                                      from_number=from_num, to_number=to_num)
-        top_up_validity = subscriber.subscriber_status.\
-            get_subscriber_validity( to_imsi, get_validity_days(amount))
+        top_up_validity = subscriber.status.get_subscriber_validity(
+            to_imsi, get_validity_days(amount))
         subscriber.add_credit(to_imsi, str(int(amount)))
         # Humanize credit strings
         amount_str = freeswitch_strings.humanize_credits(amount)

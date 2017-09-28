@@ -928,27 +928,29 @@ class UsageEvent(models.Model):
                     # TODO(sagar): Block duration (30 minutes)
                     # needs to be configurable in unblock task
                     # Send SMS
-                    celery_app.send_task("Blocked for 30 minutes due to "
+                    celery_app.send_task('endagaweb.tasks.sms_notification',
+                                         ("Blocked for 30 minutes due to "
                                          "repeated wrong attempts",
-                                         event.subscriber.number_set.all()[0])
+                                         event.subscriber.number_set.all()[0]))
                     logger.info('Subscriber %s blocked for 30 minutes, '
                                 'repeated invalid transactions within 24 '
                                 'hours' % event.subscriber_imsi)
                 else:
                     #SMS notification about attempts left
-                    celery_app.send_task("You attempted %s wrong recharge(s)."
+                    celery_app.send_task('endagaweb.tasks.sms_notification',
+                                         ("You attempted %s wrong recharge(s)."
                                          "Attempts left (%s) before services "
                                          "get blocked,"
                                          % (sub_evt.count, attempts_left),
-                                         event.subscriber.number_set.all()[0])
+                                         event.subscriber.number_set.all()[0]))
             else:
                 sub_evt = SubscriberInvalidEvents.objects.create(
                     subscriber=event.subscriber, count=1)
                 sub_evt.event_time = event.date
                 sub_evt.negative_transactions = [event.transaction_id]
                 sub_evt.save()
-        elif SubscriberInvalidEvents.objects.get(
-                subscriber=event.subscriber).exists():
+        elif SubscriberInvalidEvents.objects.filter(
+                subscriber=event.subscriber).count() > 0:
             # Delete the event if events are non-consecutive keep the event if
             # until subscriber is unblocked
             if not event.subscriber.is_blocked:

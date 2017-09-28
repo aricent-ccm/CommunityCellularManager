@@ -28,9 +28,9 @@ def usage(num=100):
 def kind_from_reason(reason_str):
     types = ["local_call", "local_sms", "outside_call", "outside_sms",
              "free_call", "free_sms", "incoming_sms", "error_sms",
-             "error_call", "transfer", "add_money", "deduct_money",
+             "error_call", "error_transfer", "transfer", "add_money", "deduct_money",
              "set_balance", "unknown", "Provisioned", "local_recv_call",
-             "local_recv_sms", "incoming_call", "gprs", "error_transfer"]
+             "local_recv_sms", "incoming_call", "gprs"]
     for t in types:
         if t in reason_str:
             return t
