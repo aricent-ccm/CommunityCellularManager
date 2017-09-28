@@ -1084,6 +1084,9 @@ class Network(models.Model):
     # Network environments let you specify things like "prod", "test", "dev",
     # etc so they can be filtered out of alerts. For internal use.
     environment = models.TextField(default="default")
+    # Added for Network Balance Limit
+    max_balance = models.BigIntegerField(default=10000)
+    max_failure_transaction = models.PositiveIntegerField(blank=True, default=3)
 
     class Meta:
         permissions = (
@@ -1574,6 +1577,10 @@ class NetworkDenomination(models.Model):
     start_amount = models.BigIntegerField()
     end_amount = models.BigIntegerField()
     validity_days = models.PositiveIntegerField(blank=True, default=0)
+    status = models.CharField(max_length=10, default='pending',
+                              choices=[('pending', 'Pending'),
+                                       ('deleted', 'Deleted'),
+                                       ('done', 'Done')])
 
     # The denomination group associated with the network
     network = models.ForeignKey('Network', null=True, on_delete=models.CASCADE)
