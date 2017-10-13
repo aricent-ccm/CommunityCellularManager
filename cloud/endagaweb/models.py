@@ -24,12 +24,13 @@ from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.contrib.gis.db import models as geomodels
 from django.core.validators import MinValueValidator
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db import models
 from django.db import transaction
 from django.db.models import F
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from guardian.shortcuts import (assign_perm, get_users_with_perms)
 from rest_framework.authtoken.models import Token
 import django.utils.timezone
@@ -58,7 +59,11 @@ NON_ACTIVITIES = (
 OUTBOUND_ACTIVITIES = (
     'outside_call', 'outside_sms', 'local_call', 'local_sms',
 )
-
+# These UsageEvent events are not allowed block the Subscriber if repeated
+# more than Maximum Permissible Unsuccessful Transactions
+INVALID_EVENTS = (
+    'error_transfer',
+)
 
 class UserProfile(models.Model):
     """UserProfiles extend the default Django User models.
@@ -514,7 +519,7 @@ class Subscriber(models.Model):
     imsi = models.CharField(max_length=50, unique=True)
     name = models.TextField()
     crdt_balance = models.TextField(default=crdt.PNCounter("default").serialize())
-    state = models.CharField(max_length=10)
+    state = models.CharField(max_length=15, default='first_expired')
     # Time of the last received UsageEvent that's not in NON_ACTIVITIES.
     last_active = models.DateTimeField(null=True, blank=True)
     # Time of the last received UsageEvent that is in OUTBOUND_ACTIVITIES.  We
@@ -525,6 +530,19 @@ class Subscriber(models.Model):
     # When toggled, this will protect a subsriber from getting "vacuumed."  You
     # can still delete subs with the usual "deactivate" button.
     prevent_automatic_deactivation = models.BooleanField(default=False)
+    # Block subscriber if repeated unauthorized events.
+    is_blocked = models.BooleanField(default=False)
+    # older validity until first recharge
+    valid_through = models.DateTimeField(null=True,
+                                         default=django.utils.timezone.now()
+                                                 - datetime.timedelta(days=1))
+    block_reason = models.TextField(default='N/A', max_length=255)
+    last_blocked = models.DateTimeField(null=True, blank=True)
+    # role of subscriber
+    role = models.TextField(null=True, blank=True, default="subscriber")
+
+    class Meta:
+        default_permissions = ()
 
     @classmethod
     def update_balance(cls, imsi, other_bal):
@@ -576,8 +594,8 @@ class Subscriber(models.Model):
         self.crdt_balance = bal.serialize()
 
     def __unicode__(self):
-        return "Sub %s, %s, network: %s, balance: %d" % (
-            self.name, self.imsi, self.network, self.balance)
+        return "Sub %s, %s, network: %s, balance: %d, role: %s" % (
+            self.name, self.imsi, self.network, self.balance, self.role)
 
     def numbers(self):
         n = self.number_set.all()
@@ -765,7 +783,7 @@ class UsageEvent(models.Model):
       downloaded_bytes: number of downloaded bytes for a GPRS event
       timespan: the duration of time over which the GPRS data was sampled
     """
-    transaction_id = models.UUIDField(editable=False, default=uuid.uuid4)
+    transaction_id = models.TextField()
     subscriber = models.ForeignKey(Subscriber, null=True,
                                    on_delete=models.SET_NULL)
     subscriber_imsi = models.TextField(null=True)
@@ -868,10 +886,76 @@ class UsageEvent(models.Model):
         event.subscriber.last_active = event.date
         event.subscriber.save()
 
+    @staticmethod
+    def if_invalid_events(sender, instance=None, created=False, **kwargs):
+        # Check for any invalid event and make an entry
+        if not created:
+            return
+        event = instance
+        if event.kind in INVALID_EVENTS:
+            if SubscriberInvalidEvents.objects.filter(
+                    subscriber=event.subscriber).exists():
+                # Subscriber is blocked after N(max_failure_transaction)
+                # counts
+                sub_evt = SubscriberInvalidEvents.objects.get(
+                    subscriber=event.subscriber)
+                # if it hits max_failure_trx of Network in 24hr
+                # block the subscriber
+                negative_transactions_ids = sub_evt .negative_transactions + [
+                    event.transaction_id]
+                sub_evt.count = sub_evt.count + 1
+                sub_evt.event_time = event.date
+                sub_evt.negative_transactions = negative_transactions_ids
+                sub_evt.save()
+                max_transactions = event.subscriber.network.max_failure_transaction
+                if sub_evt.count >= max_transactions:
+                    block_reason = 'Repeated %s within 24 hours ' % (
+                        '/'.join(INVALID_EVENTS),)
+                    # event.subscriber.is_blocked = True (already blocked on
+                    event.subscriber.block_reason = block_reason
+                    if sub_evt.count == max_transactions:
+                        # Update time for last max failure trx event only
+                        event.subscriber.last_blocked = django.utils.timezone.now()
+                    event.subscriber.save()
+                    logger.info('Subscriber %s blocked for 30 minutes, '
+                                'repeated invalid transactions within 24 '
+                                'hours' % event.subscriber_imsi)
+            else:
+                sub_evt = SubscriberInvalidEvents.objects.create(
+                    subscriber=event.subscriber, count=1)
+                sub_evt.event_time = event.date
+                sub_evt.negative_transactions = [event.transaction_id]
+                sub_evt.save()
+        elif SubscriberInvalidEvents.objects.filter(
+                subscriber=event.subscriber).count() > 0:
+            # Delete the event if events are non-consecutive keep the event if
+            # until subscriber is unblocked
+            if not event.subscriber.is_blocked:
+                sub_evt = SubscriberInvalidEvents.objects.get(
+                    subscriber=event.subscriber)
+                logger.info('Subscriber %s invalid event removed' % (
+                    event.subscriber_imsi))
+                sub_evt.delete()
+
+    @staticmethod
+    def set_transaction_id(sender, instance=None, **kwargs):
+        """
+        Create transaction id to some readable format
+        Set transaction as negative transaction if error event
+        """
+        event = instance
+        if event.kind in INVALID_EVENTS:
+            negative = True
+        else:
+            negative = False
+        event.transaction_id = dbutils.format_transaction(instance.date,
+                                                          negative)
+
 
 post_save.connect(UsageEvent.set_imsi_and_uuid_and_network, sender=UsageEvent)
 post_save.connect(UsageEvent.set_subscriber_last_active, sender=UsageEvent)
-
+post_save.connect(UsageEvent.if_invalid_events, sender=UsageEvent)
+pre_save.connect(UsageEvent.set_transaction_id, sender=UsageEvent)
 
 class PendingCreditUpdate(models.Model):
     """A credit update that has yet to be acked by a BTS.
@@ -1793,3 +1877,11 @@ class FileUpload(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now_add=True)
     accessed_time = models.DateTimeField(auto_now=True)
+
+
+class SubscriberInvalidEvents(models.Model):
+    """ Invalid Events logs by Subscriber"""
+    subscriber = models.ForeignKey(Subscriber, on_delete=models.CASCADE)
+    count = models.PositiveIntegerField()
+    event_time = models.DateTimeField(auto_now_add=True)
+    negative_transactions = ArrayField(models.TextField(), null=True)

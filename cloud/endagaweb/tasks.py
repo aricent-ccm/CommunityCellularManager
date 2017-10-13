@@ -9,6 +9,7 @@ of patent rights can be found in the PATENTS file in the same directory.
 """
 
 from __future__ import absolute_import
+from endagaweb.celery import app as celery_app
 
 import csv
 import datetime
@@ -38,7 +39,7 @@ from endagaweb.models import BTS
 from endagaweb.models import Network
 from endagaweb.models import PendingCreditUpdate
 from endagaweb.models import ConfigurationKey
-from endagaweb.models import Subscriber
+from endagaweb.models import Subscriber, SubscriberInvalidEvents
 from endagaweb.models import UsageEvent
 from endagaweb.models import SystemEvent
 from endagaweb.models import TimeseriesStat
@@ -246,11 +247,11 @@ def vacuum_inactive_subscribers(self):
         # Do nothing if subscriber vacuuming is disabled for the network.
         if not network.sub_vacuum_enabled:
             continue
-        inactives = network.get_outbound_inactive_subscribers(
-            network.sub_vacuum_inactive_days)
+        inactives = Subscriber.objects.filter(
+            state='recycle', network_id=network.id,
+            prevent_automatic_deactivation=False
+        )
         for subscriber in inactives:
-            if subscriber.prevent_automatic_deactivation:
-                continue
             print 'vacuuming %s from network %s' % (subscriber.imsi, network)
             subscriber.deactivate()
             # Sleep a bit in between each deactivation so we don't flood the
@@ -439,3 +440,170 @@ def req_bts_log(self, obj, retry_delay=60*10, max_retries=432):
         raise
     finally:
       obj.save()
+
+
+@app.task(bind=True)
+def unblock_blocked_subscribers(self):
+    """Unblock subscribers who are blocked for past 30 minutes.
+    This runs this as a periodic task managed by celerybeat.
+    """
+    unblock_time = django.utils.timezone.now() - datetime.timedelta(minutes=30)
+    clear_evt_time = django.utils.timezone.now() - datetime.timedelta(days=1)
+    subscribers = Subscriber.objects.filter(is_blocked=True,
+                                            last_blocked__lte=unblock_time)
+    if not subscribers:
+        return  # Do nothing
+    imsis = [subscriber.imsi for subscriber in subscribers]
+    print '%s was blocked for past 30 minutes now Unblocked!' % (
+        imsis, )
+    subscribers.update(is_blocked=False, block_reason='N/A')
+    # Clear Invalid Events History
+    sub_evt = SubscriberInvalidEvents.objects.filter(
+        event_time__lte=clear_evt_time)
+    if sub_evt:
+        sub_evt.delete()
+    body = 'You number is unblocked and services are resumed!'
+    for sub in subscribers:
+        try:
+            # We send sms to the subscriber's first number.
+            num = sub.number_set.all()[0] if not sub.is_blocked else None
+        except IndexError:
+            num = None
+        if num:
+            # Send unblock sms to the number
+            celery_app.send_task('endagaweb.tasks.sms_notification',
+                                 (body, num))
+
+
+@app.task(bind=True)
+def subscriber_validity_state(self):
+    """
+    Updates the subscribers state to first_expired/expired/recycle
+    state is set to 'Active' only when top-up.
+    Ignored for Retailers
+    """
+
+    today = django.utils.timezone.now().date()
+    subscribers = Subscriber.objects.filter(
+        valid_through__lte=today).exclude(role='retailer')
+    if subscribers:
+        for subscriber in subscribers:
+            try:
+                if subscriber.valid_through is None:
+                    continue
+            except IndexError:
+                continue
+
+            subscriber_validity = subscriber.valid_through.date()
+            subscriber_state = str(subscriber.state)
+            first_expire = subscriber_validity + datetime.timedelta(
+                days=subscriber.network.sub_vacuum_inactive_days)
+            expired = first_expire + datetime.timedelta(
+                days=subscriber.network.sub_vacuum_grace_days)
+
+            if subscriber_validity < today:
+                if today <= first_expire:
+                    if subscriber_state.lower() != 'first_expired':
+                        subscriber.state = 'first_expired'
+                        subscriber.save()
+                elif today <= expired:
+                    if subscriber_state.lower() != 'expired':
+                        subscriber.state = 'expired'
+                        subscriber.save()
+                else:
+                    # Let deactivation of subscriber be handled by
+                    # vacuum_inactive_subscribers
+                    if subscriber_state.lower() != 'recycle':
+                        subscriber.state = 'recycle'
+                        subscriber.save()
+
+                print "Updating Subscriber: %s state to %s " \
+                      % (subscriber.imsi, subscriber.state)
+                # Create a Usage event
+                if subscriber.state in ['first_expired', 'expired', 'recycle']:
+                    now = django.utils.timezone.now()
+                    info = 'Validity expired setting state as %s' \
+                           % subscriber.state
+                    event = UsageEvent.objects.create(
+                        subscriber=subscriber, date=now, bts=subscriber.bts,
+                        reason=info, oldamt=subscriber.balance,
+                        newamt=subscriber.balance, change=0)
+                    event.save()
+
+
+@app.task(bind=True)
+def validity_expiry_sms(self, days=7):
+    """Sends SMS to the number whose validity is:
+     about to get expire,
+     if expired (i.e 1st expired), or
+     if the number is in grace period and is about to recycle.
+
+     Args:
+         days: Days prior (state change) which the SMS is sent to Subscriber.
+     Runs as everyday task managed by celerybeat.
+     """
+    today = django.utils.timezone.datetime.now().date()
+    for subscriber in Subscriber.objects.iterator():
+        # Do nothing if subscriber vacuuming is disabled for the network.
+        if not subscriber.network.sub_vacuum_enabled:
+            continue
+        try:
+            number = subscriber.number_set.all()[0]
+            subscriber_validity = subscriber.valid_through
+            # In case where number has no validity
+            if subscriber_validity is None:
+                print '%s has no validity' % (subscriber.imsi,)
+                continue
+        except IndexError:
+            print 'No number attached to subscriber %s' % (subscriber.imsi,)
+            continue
+
+        subscriber_validity = subscriber_validity.date()
+        inactive_period = subscriber.network.sub_vacuum_inactive_days
+        grace_period = subscriber.network.sub_vacuum_grace_days
+
+        prior_first_expire = subscriber_validity + datetime.timedelta(
+            days=inactive_period) - datetime.timedelta(days=days)
+
+        prior_recycle = prior_first_expire + datetime.timedelta(
+            days=grace_period)
+
+        # Prior to expiry state (one on last day and before defined days)
+        if subscriber_validity > today and (
+                            (subscriber_validity - datetime.timedelta(
+                                days=days)
+                             ) == today or today == (
+                                subscriber_validity - datetime.timedelta(
+                                days=1)) or today == subscriber_validity):
+            body = 'Your validity is about to get expired on %s , Please ' \
+                   'recharge to continue the service. Please ignore if ' \
+                   'already done! ' % (subscriber_validity,)
+            celery_app.send_task('endagaweb.tasks.sms_notification',
+                                 (body, number))
+        # Prior 1st_expired state
+        elif subscriber_validity < today:
+            if prior_first_expire == today or today == (
+                        prior_first_expire + datetime.timedelta(
+                        days=days - 1)):
+                body = 'Your validity has expired on %s, Please recharge ' \
+                       'immediately to activate your services again! ' % (
+                           subscriber_validity,)
+                celery_app.send_task('endagaweb.tasks.sms_notification',
+                                     (body, number))
+            # Prior to recycle state
+            elif prior_recycle == today or today == (
+                        prior_recycle + datetime.timedelta(days=days - 1)):
+                body = 'Warning: Your validity has expired on %s , Please ' \
+                       'recharge immediately to avoid deactivation of your ' \
+                       'connection! ' % (subscriber_validity,)
+                celery_app.send_task('endagaweb.tasks.sms_notification',
+                                     (body, number))
+        # SMS on same day of expiry
+        elif subscriber_validity == today:
+            body = 'Your validity expiring today %s, Please recharge ' \
+                   'immediately to continue your services again!, ' \
+                   'Ignore if already done! ' % (subscriber_validity,)
+            celery_app.send_task('endagaweb.tasks.sms_notification',
+                                 (body, number))
+        else:
+            return  # Do nothing
