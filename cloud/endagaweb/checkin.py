@@ -26,7 +26,7 @@ from endagaweb.models import Subscriber
 from endagaweb.models import TimeseriesStat
 from endagaweb.models import UsageEvent
 from endagaweb.util.parse_destination import parse_destination
-
+from endagaweb.models import NetworkDenomination
 
 class CheckinResponder(object):
 
@@ -163,6 +163,8 @@ class CheckinResponder(object):
                                              self.gen_subscribers())
         resp['events'] = self.gen_events()
         resp['sas'] = self.gen_spectrum()
+        # send network denomination bracket data with response
+        resp['network_denomination'] = self.get_network_denomination()
         self.bts.save()
         return resp
 
@@ -403,6 +405,7 @@ class CheckinResponder(object):
             'latest_stable_version': latest_stable_version,
             'latest_beta_version': latest_beta_version,
         }
+        result['endaga']['network_max_balance'] = self.bts.network.max_balance
         return result
 
     def gen_events(self):
@@ -484,6 +487,19 @@ class CheckinResponder(object):
                     'power_level': pwr_level,
                 }
         return {'ok': False}
+
+    def get_network_denomination(self):
+        """
+        Returns a list of denomination bracket for status done
+        """
+        res = []
+        for s in NetworkDenomination.objects.filter(network=self.bts.network,
+                                                    status='done'):
+            data = {'id': s.id,'start_amount': s.start_amount,
+                    'end_amount': s.end_amount, 'validity': str(s.validity_days)}
+            res.append(data)
+        return res
+
 
 
 def handle_event(bts, event, destinations=None):
