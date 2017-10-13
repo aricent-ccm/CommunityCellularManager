@@ -26,7 +26,7 @@ from endagaweb.models import Subscriber
 from endagaweb.models import TimeseriesStat
 from endagaweb.models import UsageEvent
 from endagaweb.util.parse_destination import parse_destination
-
+import dateutil.parser as dateparser
 
 class CheckinResponder(object):
 
@@ -56,6 +56,7 @@ class CheckinResponder(object):
             'system_utilization': self.timeseries_handler,
             'subscribers': self.subscribers_handler,
             'radio': self.radio_handler,  # needs location_handler -kurtis
+            'subscriber_status': self.subscriber_status_handler,
             # TODO: (kheimerl) T13270418 Add location update information
         }
 
@@ -263,6 +264,31 @@ class CheckinResponder(object):
                 logging.error("Subscriber %s doesn't exist, skipping!" %
                               (imsi, ))
                 continue
+
+    def subscriber_status_handler(self, subscriber_status):
+        """
+        Update the subscribers' state and validity info based on
+         what the client submits.
+        """
+        for imsi in subscriber_status:
+            sub_info = json.loads(subscriber_status[imsi]['state'])
+            validity_now = str(sub_info['validity'])
+            state = str(sub_info['state'])
+            try:
+                sub = Subscriber.objects.get(imsi=imsi)
+                if sub.valid_through.date() < dateparser.parse(validity_now).date():
+                    sub.state = 'active'
+                    sub.valid_through = validity_now
+                if state == 'active*':
+                    sub.is_blocked = True
+                    evt_gen = UsageEvent.objects.filter(
+                        kind='error_transfer').order_by('-date')[0]
+                    sub.last_blocked = evt_gen.date
+                sub.save()
+            except Subscriber.DoesNotExist:
+                logging.warn('[subscriber_status_handler] subscriber %s does not'
+                             ' exist.' % imsi)
+
 
     def radio_handler(self, radio):
         if 'band' in radio and 'c0' in radio:

@@ -92,6 +92,7 @@ class CheckinHandler(object):
     @delta.DeltaCapable(section_ctx['subscribers'], True)
     def process_subscribers(self, data_dict):
         subscriber.process_update(data_dict)
+        subscriber.status(update=data_dict)
 
     def process_events(self, data_dict):
         """Process information about events.
