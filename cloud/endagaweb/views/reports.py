@@ -14,7 +14,8 @@ from guardian.shortcuts import get_objects_for_user
 from ccm.common.currency import humanize_credits
 from endagaweb import models
 from endagaweb.models import NetworkDenomination
-from endagaweb.models import (UserProfile, Subscriber, UsageEvent, Network)
+from endagaweb.models import (UserProfile, Subscriber, UsageEvent, Network,
+                              TimeseriesStat)
 from endagaweb.views.dashboard import ProtectedView
 from guardian.shortcuts import get_objects_for_user
 from ccm.common.currency import CURRENCIES
@@ -29,7 +30,8 @@ reports_dict = {
     'Waterfall': ['Activation', 'Loader', 'Reload Rate', 'Reload Amount',
                   'Reload Transaction', 'Average Load', 'Average Frequency']
 }
-
+tower_report_type = ['Channel Load', 'Noise', 'System Utilization',
+                     'Network Utilization']
 
 class BaseReport(ProtectedView):
     """The base Report class.
@@ -216,7 +218,33 @@ class ReportGraphDownload(ProtectedView):
                     e.role,
                 ])
             return response
-        if (report_type == 'BTS Status'):
+        elif report_type in tower_report_type:
+            chnl_events = self._get_channel_load_report(level, level_id,
+                                                        start_time, end_time,
+                                                        stat_types)
+            headers = [
+                'Type',
+                'value',
+                'Day',
+                'Time',
+                'Time Zone',
+            ]
+            response = HttpResponse(content_type='text/csv')
+            writer = csv.writer(response)
+            writer.writerow(headers)
+            timezone = pytz.timezone(user_profile.timezone)
+            for events in chnl_events[:7000]:
+                tz_date = django_utils_timezone.localtime(events.date, timezone)
+                writer.writerow([
+                    events.key,
+                    events.value,
+                    tz_date.date().strftime("%m-%d-%Y"),
+                    tz_date.time().strftime("%I:%M:%S %p"),
+                    timezone,
+                ])
+            return response
+
+        elif report_type == 'BTS Status':
             bts_events = self._get_bts_health_report(level, level_id,
                                                      start_time, end_time,
                                                      stat_types)
@@ -333,13 +361,14 @@ class ReportGraphDownload(ProtectedView):
             qs = Q(kind='transfer')
             qs1 = Q(subscriber__role='retailer')
             events = events.filter(qs & qs1)
-            return events
-        if stats_type:
-            if report_type == 'Retailer Recharge Report':
-                qs1 = Q(kind__icontains='add_money')
-                qs = Q(subscriber__role='retailer')
-                events = events.filter(qs1 & qs)
-                return events
+        elif report_type == 'Retailer Recharge Report':
+              qs1 = Q(kind__icontains='add_money')
+              qs = Q(subscriber__role='retailer')
+              events = events.filter(qs1 & qs)
+        elif report_type == 'Data usage':
+               qs =Q(kind__icontains='gprs')
+               events = events.filter(qs)
+        else:
             qs = ([Q(kind__icontains=s) for s in stats_type])
             if report_type == 'Subscriber Activity':
                 qs.append((Q(oldamt__gt=0, newamt__lte=0)))
@@ -360,6 +389,18 @@ class ReportGraphDownload(ProtectedView):
             subscriber_events = subscriber_events.filter(network__id=level_id)
 
         return subscriber_events
+
+    def _get_channel_load_report(self, level, level_id, start_date=None,
+                                 end_date=None, stats_type=None):
+        """Get timeseries events to calacluate channel load """
+        timeseries_events = TimeseriesStat.objects.filter(
+            date__range=(str(start_date), str(end_date)))
+        if stats_type:
+            qs = ([Q(key=s) for s in stats_type])
+            timeseries_events = timeseries_events.filter(
+                reduce(operator.or_, qs))
+            timeseries_events = timeseries_events.filter(bts_id=level_id).order_by('date')
+        return timeseries_events
 
     def _get_bts_health_report(self, level, level_id, start_date=None,
                                end_date=None, stats_type=None):
