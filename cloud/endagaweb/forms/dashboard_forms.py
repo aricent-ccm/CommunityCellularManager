@@ -10,19 +10,24 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import datetime
 
+import pytz
+from crispy_forms.bootstrap import StrictButton, FieldWithButtons
+from crispy_forms.helper import FormHelper
+from crispy_forms.layout import Layout, Submit, Field, Fieldset, ButtonHolder
 from django import forms
+from django.contrib.auth.forms import PasswordChangeForm, PasswordResetForm
+from django.contrib.auth.models import User
+from django.core import urlresolvers
 from django.db.models import Value
 from django.db.models.functions import Coalesce
-from django.core import urlresolvers
-from crispy_forms.helper import FormHelper
-from crispy_forms.layout import Layout, Submit, Field
-from crispy_forms.bootstrap import StrictButton, FieldWithButtons
-from django.contrib.auth.forms import PasswordChangeForm
-import pytz
+from django.utils import safestring
 
 from ccm.common.currency import CURRENCIES
 from endagaweb import models
 from endagaweb.templatetags import apptags
+from django.contrib.auth import password_validation
+from googletrans.constants import LANGUAGES, LANGCODES
+from django.conf import settings
 
 
 class UpdateContactForm(forms.Form):
@@ -368,3 +373,135 @@ class SelectTowerForm(forms.Form):
         self.helper.form_action = '/dashboard/staff/tower-monitoring'
         self.helper.add_input(Submit('submit', 'Select'))
         self.helper.layout = Layout('tower')
+
+
+class NotificationForm(forms.Form):
+    language_choices = []
+    for key in settings.BTS_LANGUAGES:
+        language_choices.append((key, LANGUAGES[key].capitalize()))
+    types = (
+        ('automatic', 'Automatic'),
+        ('mapped', 'Mapped')
+    )
+    help_text = (
+        '<b>Automatic:</b> Sent to user automatically, <br>'
+        '<b>Mapped:</b> Notification will be sent to mapped users.'
+    )
+    type = forms.ChoiceField(required=True, label='', help_text=help_text,
+                             choices=types,
+                             widget=forms.RadioSelect(
+                                 attrs={'title': 'Notification type'}), )
+
+    event_info = "<span id='event_exists' hidden='hidden' style='color:red'>" \
+                 "Notification already exists!</span>"
+    event = forms.CharField(required=True, help_text=event_info,
+                            widget=forms.TextInput(
+                                attrs={'title': 'alphabets or '
+                                                'alphanumeric only',
+                                       'style': 'width:300px',
+                                       'onchange': 'checkEvent()',
+                                       }), label='Events')
+
+    edit = "<span id='edit' hidden='hidden'> Click <a href='#' " \
+           "onclick='editMessage()'>Edit</a> to change.</span>"
+    edit = safestring.mark_safe(edit)
+    html_break = safestring.mark_safe('<br>')
+    message_edit_help = 'Note: Any change to above message will reflect all ' \
+                        'translations. %s %s ' \
+                        'Translations can be changed separately.' % (
+                            edit, html_break)
+    message = forms.CharField(required=True, min_length=20, max_length=160,
+                              label='Message',
+                              help_text=message_edit_help,
+                              widget=forms.Textarea(
+                                  attrs={'title': 'Message for translation '
+                                                  '(max characters: 160)',
+                                         'placeholder': 'Enter Message...',
+                                         'rows': '2',
+                                         'onchange': 'getTranslation(this)',
+                                         }
+                              ))
+    info = "Details on how to add message..."
+    number = forms.IntegerField(required=True, disabled=True, min_value=1,
+                                max_value=999, widget=forms.NumberInput(
+            attrs={'class': 'form-control', 'pattern': '[0-9]{3}',
+                   'title': 'numerical input only', 'style': 'width:100px',
+                   'oninvalid': "setCustomValidity('Enter number "
+                                "(max: 3 digits)')",
+                   'onchange': "try{"
+                               "setCustomValidity('')}"
+                               "catch(e){}; checkEvent();",
+                   }),
+                                )
+    pk = forms.CharField(widget=forms.HiddenInput())
+
+    def __init__(self, language=None, *args, **kwargs):
+        super(NotificationForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_id = 'network-notification-form'
+        self.helper.form_method = 'POST'
+        self.helper.form_action = '/dashboard/network/notification'
+        fields = []
+        fields.extend(['type', 'number', 'event', 'message', 'pk'])
+        if language:
+            languages = dict(language).keys()
+        else:
+            languages = settings.BTS_LANGUAGES
+        missing = ''
+        if len(languages) != len(settings.BTS_LANGUAGES):
+            missing = list(set(settings.BTS_LANGUAGES) - set(languages))
+        self.helper.add_input(
+            Submit('submit', 'Submit', css_class='invisible pull-right'))
+        for key in settings.BTS_LANGUAGES:
+            placeholder = 'Translation in %s ' % LANGUAGES[
+                key].capitalize()
+            label = LANGUAGES[key].capitalize()
+            if key in missing:
+                placeholder = 'New language %s' % LANGUAGES[
+                    key].capitalize()
+
+            self.fields['lang_%s' % key] = forms.CharField(
+                required=True, min_length=20, max_length=160,
+                label=label, widget=forms.Textarea(
+                    attrs={'id': 'lang_%s' % key,
+                           'title': "For dynamic values you can add "
+                                    "%(account_balance)s for number "
+                                    "%(number)s etc."
+                                    "Always add a space after"
+                                    "wildcard(s)",
+                           'placeholder': placeholder,
+                           'rows': '2',
+                           'onchange': 'enableUpdate()',
+                           }
+                ))
+            fields.append('lang_%s' % key)
+        self.helper.layout = Layout(*fields)
+
+
+class NotificationSearchForm(forms.Form):
+    """Crispy search form for notifications under network"""
+    choices = []
+    lang = settings.BTS_LANGUAGES
+    for lg in lang:
+        choices.append((lg, LANGUAGES[lg].capitalize()))
+
+    query = forms.CharField(required=False, label="",
+                            widget=forms.TextInput(
+                                attrs={'placeholder': 'Message or Type of'
+                                                      ' event'
+                                       }))
+    language = forms.ChoiceField(label="", choices=choices, required=False,
+                                 widget=forms.Select(
+                                     attrs={'onchange': 'form.submit();'}))
+
+    def __init__(self, *args, **kwargs):
+        super(NotificationSearchForm, self).__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.form_id = 'id-NotificationSearchForm'
+        self.helper.form_method = 'get'
+        self.helper.form_action = '/dashboard/network/notification'
+        search_button = StrictButton('Filter', css_class='btn-default',
+                                     type='submit')
+        self.helper.form_class = 'col-sm-4'
+        self.helper.layout = Layout(FieldWithButtons('query', search_button),
+                                    'language')

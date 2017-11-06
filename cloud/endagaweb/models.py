@@ -44,6 +44,7 @@ from endagaweb.celery import app as celery_app
 from endagaweb.notifications import bts_up
 from endagaweb.util import currency as util_currency
 from endagaweb.util import dbutils as dbutils
+from googletrans.constants import LANGUAGES
 
 stripe.api_key = settings.STRIPE_API_KEY
 
@@ -1793,3 +1794,23 @@ class FileUpload(models.Model):
     created_time = models.DateTimeField(auto_now_add=True)
     modified_time = models.DateTimeField(auto_now_add=True)
     accessed_time = models.DateTimeField(auto_now=True)
+
+class Notification(models.Model):
+    # """
+    # Notification messages and their translations
+    # """
+    TYPE = (
+        ('automatic', 'Automatic'),
+        ('mapped', 'Mapped')
+    )
+
+    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+    event = models.CharField(max_length=100, null=True)
+    message = models.TextField(max_length=160, null=True)
+    type = models.CharField(max_length=10, choices=TYPE, default='automatic')
+    language = models.CharField(max_length=6, default='en')
+    translation = models.TextField(max_length=160, null=True)
+    protected = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('event', 'translation', 'network')

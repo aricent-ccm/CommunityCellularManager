@@ -20,6 +20,7 @@ import django_tables2 as tables
 
 from ccm.common.currency import humanize_credits, CURRENCIES
 from endagaweb import models
+from googletrans.constants import LANGUAGES
 
 
 def render_user_profile(record):
@@ -364,4 +365,59 @@ class DenominationTable(tables.Table):
                    "class='btn btn-xs btn-info'>Edit</a> &nbsp; " % (record.id, record.id)
         element += "<a href='javascript:void(0)' onclick='doAction(\"delete\",\"%s\");' class='btn btn-xs btn-danger'" \
                    "data-target='#delete-denom-modal' data-toggle='modal'>Delete</a>" % (record.id)
+        return safestring.mark_safe(element)
+
+class NotificationTable(tables.Table):
+    """
+    Notification table for managing notification messages
+    """
+
+    class Meta:
+        model = models.Notification
+        fields = ('id', 'event', 'message', 'type')
+        attrs = {'class': 'table'}
+
+    id = tables.CheckBoxColumn(accessor="pk",
+                               attrs={"th__input":
+                                          {"onclick": "toggle(this)"}
+                                      }
+                               )
+    type = tables.Column()
+    event = tables.Column(orderable=False)
+    message = tables.Column(orderable=False)
+
+    def render_event(self, record):
+        event = str(record.event).replace('_', ' ').upper()
+        element = "<a href='#'" \
+                  "data-target='#all-translations' data-toggle='modal' " \
+                  "onclick='getNotification(%s);'>%s </a> " % (record.id,
+                                                               event)
+        return safestring.mark_safe(element)
+
+
+class NotificationTableTranslated(tables.Table):
+    """
+    Notification table specific language message
+    """
+
+    class Meta:
+        model = models.Notification
+        fields = ('id', 'event', 'translation', 'type')
+        attrs = {'class': 'table'}
+
+    id = tables.CheckBoxColumn(accessor="pk",
+                               attrs={"th__input":
+                                          {"onclick": "toggle(this)"}
+                                      }
+                               )
+    type = tables.Column()
+    event = tables.Column(orderable=False)
+    translation = tables.Column(orderable=False, verbose_name='Message')
+
+    def render_event(self, record):
+        event = str(record.event).replace('_', ' ').upper()
+        element = "<a href='#'" \
+                  "data-target='#all-translations' data-toggle='modal' " \
+                  "onclick='getNotification(%s);'>%s </a> " % (record.id,
+                                                               event)
         return safestring.mark_safe(element)

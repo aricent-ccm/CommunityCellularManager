@@ -7,16 +7,21 @@ LICENSE file in the root directory of this source tree. An additional grant
 of patent rights can be found in the PATENTS file in the same directory.
 -->
 
-<extension name="no_money">
-  <!-- free local numbers don't require money -->
+<extension name="number_status">
   <condition field='${vbts_callerid}' expression="^\d+$"/>
-  <condition field='${cond(${vbts_account_balance} < ${call_tariff} ? YES : NO)}' expression="^YES$">
+  <condition field='${vbts_account_status}' expression="False">
     <action application="set" data='service_type=error_call'/>
     <action application="export" data='service_type=error_call'/>
-    <action application="python" data="endaga_notification no_money"/>
+    <action application="python" data="endaga_notification block_expired"/>
     <action application="set" data='res=${python(VBTS_Send_SMS ${vbts_callerid}|103|${_localstr})}'/>
     <action application="answer"/>
     <action application="speak" data='flite|slt|${_localstr}'/>
+    <action application="hangup"/>
+  </condition>
+</extension>
+
+<extension name="called_number_status">
+  <condition field='${vbts_dest_account_status}' expression="False">
     <action application="hangup"/>
   </condition>
 </extension>

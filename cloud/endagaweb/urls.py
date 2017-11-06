@@ -145,6 +145,9 @@ urlpatterns = [
     url(r'^dashboard/network/denominations$',
         endagaweb.views.network.NetworkDenomination.as_view(),
         name='network-denominations'),
+    url(r'^dashboard/network/denominations/manage$',
+        endagaweb.views.network.NetworkDenominationEdit.as_view(),
+        name='network-denominations-manage'),
     url(r'^dashboard/network/inactive-subscribers$',
         endagaweb.views.network.NetworkInactiveSubscribers.as_view(),
         name='network-inactive-subscribers'),
@@ -153,6 +156,13 @@ urlpatterns = [
         name='network-edit'),
     url(r'^dashboard/network/select/(?P<network_id>[0-9]+)$',
         endagaweb.views.network.NetworkSelectView.as_view()),
+    # Notifications
+    url(r'^dashboard/network/notification$',
+        endagaweb.views.network.NetworkNotifications.as_view(),
+        name='network-notifications'),
+    url(r'^dashboard/network/notification/update',
+        endagaweb.views.network.NetworkNotificationsEdit.as_view(),
+        name='network-notifications-manage'),
     # The activity table.
     url(r'^dashboard/activity',
         endagaweb.views.dashboard.ActivityView.as_view(),
