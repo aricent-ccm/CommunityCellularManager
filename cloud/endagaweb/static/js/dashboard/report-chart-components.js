@@ -678,7 +678,7 @@ var TimeseriesChart = React.createClass({
         if (isFlatChart) {
             flatLineOverlay = (
                 <div className='flat-chart-overlay' style={{height: this.props.chartHeight}}>
-                    <div style={{"line-height": this.props.chartHeight - 20}}>
+                    <div style={{"line-height": this.props.chartHeight - 70}}>
                         No data available for this range.
                     </div>
                 </div>
@@ -811,7 +811,6 @@ var LoadingText = React.createClass({
         };
         return (
             <span className="loadingText" style={inlineStyles}>
-                (loading..)
             </span>
         );
     },

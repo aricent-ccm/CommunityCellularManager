@@ -21,7 +21,6 @@ from core.billing import process_prices
 from core.bts import bts
 from core.config_database import ConfigDB
 from core.event_store import EventStore
-from core.denomination_store import DenominationStore
 from core.registration import reset_registration
 from core.subscriber import subscriber
 
@@ -31,8 +30,6 @@ class CheckinHandler(object):
     CONFIG_SECTION = "config"
     EVENTS_SECTION = "events"
     SUBSCRIBERS_SECTION = "subscribers"
-    NETWORK_DENOMINATION = "network_denomination"
-    NOTIFICATION = "notification"
 
     # NOTE: Keys in section_ctx dictionary below must match the keys of
     # optimized checkin sections: "config", "events", "subscribers", etc.
@@ -45,7 +42,6 @@ class CheckinHandler(object):
     def __init__(self, response):
         self.conf = ConfigDB()
         self.eventstore = EventStore()
-        self.denominationstore = DenominationStore()
         r = self.validate(response)
         self.process(r)
 
@@ -63,10 +59,6 @@ class CheckinHandler(object):
                 self.process_events(resp_dict[section])
             elif section == CheckinHandler.SUBSCRIBERS_SECTION:
                 self.process_subscribers(resp_dict[section])
-            elif section == CheckinHandler.NETWORK_DENOMINATION:
-                self.process_denomination(resp_dict[section])
-            elif section == CheckinHandler.NOTIFICATION:
-                self.process_notification(resp_dict[section])
             elif section != 'status':
                 logger.error("Unexpected checkin section: %s" % section)
 
@@ -100,20 +92,6 @@ class CheckinHandler(object):
     @delta.DeltaCapable(section_ctx['subscribers'], True)
     def process_subscribers(self, data_dict):
         subscriber.process_update(data_dict)
-        subscriber.status(update=data_dict)
-
-    def process_notification(self, data_dict):
-        subscriber.notif_status(update=data_dict)
-
-    def process_denomination(self, data_dict):
-        for data in data_dict:
-            if self.denominationstore.get_record(data['id']) == None:
-                self.denominationstore.add_record(data['id'],data['start_amount'],
-                                                  data['end_amount'],data['validity'])
-        id_list = self.denominationstore.get_all_id()
-        for id in id_list:
-            if id not in [d['id'] for d in data_dict]:
-                self.denominationstore.delete_record(id)
 
     def process_events(self, data_dict):
         """Process information about events.

@@ -104,7 +104,6 @@ def set_defaults(force_replace=False):
         'code_length': 4,
         # Localization settings
         'localedir': "/usr/share/locale",
-        'tmp_localedir': "/tmp/.opkg_rootfs/usr/share/locale",
         'locale': "en",
         'currency_code': "USD",
         'number_country': "US",
@@ -155,11 +154,8 @@ def set_defaults(force_replace=False):
         'external_interface': 'tun0',
         # The internal interface is the NIC used by the BSC/BTS to address this
         # system
-        'internal_interface': 'lo',
-        # network balance limit
-        'network_max_balance': 100000,
-        # Network Max Permissible Transaction 
-        'network_mput': 3
+        'internal_interface': 'lo'
+
 
     }
     config = ConfigDB()
