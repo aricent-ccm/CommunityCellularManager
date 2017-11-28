@@ -687,7 +687,6 @@ class WaterfallStatsClient(StatsClientBase):
                     result_subs = len(result_subs)
 
                 kwargs['query'] = Q(subscriber=None,
-                                    subscriber__role='subscriber',
                                     subscriber_role='subscriber',
                                     subscriber_imsi__in=subscriber_imsi,
                                     from_number__in=retailers_numbers)
