@@ -15,5 +15,3 @@ class BSSError(Exception):
 class SubscriberNotFound(Exception):
     pass
 
-class EventNotFound(Exception):
-    pass
