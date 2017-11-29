@@ -111,6 +111,11 @@ def render_imsi(record):
               "onchange = 'imsiSelected(this)' / > ".format(record.imsi)
     return safestring.mark_safe(element)
 
+def render_uuid(record):
+    element = "<input type = 'checkbox' class ='uuid_id' name='uuid[]' " \
+              "value='{0}'  id ='uuid_id_{0}' " \
+              "onchange = 'uuidSelected(this)' / > ".format(record.uuid)
+    return safestring.mark_safe(element)
 
 def render_as_label(message, record, ltype='info'):
     element = "<label class='btn btn-xs btn-%s'  data-target='#all-translations' " \

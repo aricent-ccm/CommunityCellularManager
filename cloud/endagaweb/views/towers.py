@@ -175,6 +175,32 @@ class TowerInfo(ProtectedView):
         html = info_template.render(context, request)
         return http.HttpResponse(html)
 
+class TowerUpgrade(ProtectedView):
+    permission_required = 'view_bts'
+    upgarded_version =""
+    def get(self, request):
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        towers = models.BTS.objects.filter(network=user_profile.network)
+        network = user_profile.network
+
+        # Configure the table of towers.  Do not show any pagination controls
+        # if the total number of towers is small.
+        tower_table = django_tables.TowerUpgrade(list(towers))
+        upgarded_version = tower_table.render_updated_version
+        #print towers
+        context = {
+            'network': network,
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=models.Network),
+            'user_profile': user_profile,
+            'towers': towers,
+            'tower_table': tower_table,
+
+        }
+        # Render template.
+        towers_template = template.loader.get_template('dashboard/towers_upgrade.html')
+        html = towers_template.render(context, request)
+        return http.HttpResponse(html)
 
 class TowerMonitor(ProtectedView):
     """View TimeseriesStats related to a single tower."""

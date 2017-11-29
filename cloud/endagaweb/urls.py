@@ -117,6 +117,10 @@ urlpatterns = [
     url(r'^dashboard/towers/(?P<uuid>[A-Za-z0-9-]+)/tower_events$',
         endagaweb.views.towers.TowerEvents.as_view(),
         name='tower-events'),
+    url(r'^dashboard/towerUpgrade$',
+        endagaweb.views.towers.TowerUpgrade.as_view(),
+        name='tower-upgrade'),
+
     # Subscriber views in the dashboard.
     url(r'^dashboard/subscribers$',
         endagaweb.views.dashboard.SubscriberListView.as_view(),
