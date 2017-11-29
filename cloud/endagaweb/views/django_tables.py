@@ -274,6 +274,60 @@ class TowerTable(tables.Table):
         return render_uptime(record)
 
 
+class TowerUpgrade(tables.Table):
+
+
+
+        class Meta:
+            model = models.BTS
+            fields = ('uuid',
+            'name_and_uuid_link', 'endaga_version', 'updated_version')
+            attrs = {'class': 'table table-hover'}
+
+        uuid = tables.CheckBoxColumn(accessor="uuid", attrs={"th__input"
+                                                             : {"id"
+                                                                : "uuid-select-all",
+                                                                "onclick": "toggle(this)",
+                                                                }},
+                                     orderable=False)
+        name_and_uuid_link = tables.Column(
+            empty_values=(), verbose_name='Name / ID',
+            order_by=('nickname', 'uuid'))
+        endaga_version = tables.Column(
+            empty_values=(),
+            verbose_name='Endaga Version')
+        updated_version = tables.Column(
+            empty_values=(),
+            verbose_name='Updated Version')
+
+
+        def render_uuid(self, record):
+            return render_uuid(record)
+
+        def render_name_and_uuid_link(self, record):
+            kwargs = {
+                'uuid': record.uuid
+            }
+            link = urlresolvers.reverse('tower-info', kwargs=kwargs)
+            abbreviated_uuid = record.uuid[0:5]
+            if record.nickname:
+                value = "%s (%s..)" % (record.nickname, abbreviated_uuid)
+            else:
+                value = '%s..' % abbreviated_uuid
+            element = "<a href='%s'>%s</a>" % (link, html_utils.escape(value))
+            return safestring.mark_safe(element)
+
+        def render_endaga_version(self, record):
+            package_versions = json.loads(record.package_versions)
+            print ("kkkkkkkkkkkkkkkkkkkaaa")
+            return record.printable_version(package_versions['endaga_version'])
+
+        def render_updated_version(self, record):
+
+            return record.updated_version
+
+
+
 class StaffTowerTable(tables.Table):
     """The staff-only version of the table of towers."""
 

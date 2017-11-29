@@ -143,6 +143,23 @@ def usageevents_to_sftp(self):
 
 
 @app.task(bind=True)
+def towerupgrade_to_sftp(self, towers):
+    print("under tower upgrade", towers)
+    local_path = "/home/ubuntu"
+    destination_path = '/mnt/storage'
+    now = datetime.datetime.now().date()
+    litecell15_image_file = "litecell15-ccm-image-v1.1.2-0-r0-20171114053551.rootfs.tar.gz"
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh_client.connect(
+        hostname='202.54.230.21',username ='root', password ='nuranwireless')
+    stdin, stdout, stderr = ssh_client.exec_command("ls")
+    print("aaaaaa",stdout.readlines())
+    ftp_client = ssh_client.open_sftp()
+    ftp_client.put(local_path + litecell15_image_file, destination_path + litecell15_image_file)
+    ssh_client.close()
+
+@app.task(bind=True)
 def async_post(self, url, data, retry_delay=60*10, max_retries=432):
     """Tries to send a POST request to an endpoint with some data.
 

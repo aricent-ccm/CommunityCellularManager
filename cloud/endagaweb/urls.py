@@ -240,6 +240,10 @@ urlpatterns = [
     # OAuth login TODO(omar): setup OAuth provider
     url(r'^staff-login/', endagaweb.views.user.staff_login_view),
     url(r'^accounts/', include('allauth.urls')),
+    # /towers/<uuid>...Upgrade
+    url(r'^api/v2/towersupgrade/(?P<imsi>[^/]+)$',
+        endagaweb.views.api_v2.TowerUpgrade.as_view(), name='v2_towerUpgrade'),
+
 ]
 
 

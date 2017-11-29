@@ -24,7 +24,7 @@ from core.event_store import EventStore
 from core.denomination_store import DenominationStore
 from core.registration import reset_registration
 from core.subscriber import subscriber
-
+from core.system_utilities import upgrade_package
 
 class CheckinHandler(object):
 
@@ -95,6 +95,8 @@ class CheckinHandler(object):
                 process_prices(config_dict['prices'], self.conf)
             elif section == "autoupgrade":
                 self.process_autoupgrade(config_dict['autoupgrade'])
+            elif section == "upgrade_version":
+                self.process_upgrade(config_dict['upgrade_version'])
 
     # wrap the subscriber method in order to keep delta context encapsulated
     @delta.DeltaCapable(section_ctx['subscribers'], True)
@@ -151,3 +153,13 @@ class CheckinHandler(object):
             existing_value = self.conf.get(configdb_key, None)
             if existing_value != data[key]:
                 self.conf[configdb_key] = data[key]
+
+    def process_upgrade(self, data):
+        existing_version = self.conf.get('upgrade_version', None)
+        print("existing_version", existing_version)
+        if str(existing_version) != str(data['upgrade_version']):
+            upgraded_status =upgrade_package(data['upgrade_version'])
+            if upgraded_status:
+                self.conf['upgrade_version'] = data['upgrade_version']
+            else:
+                self.conf['upgrade_version'] = existing_version

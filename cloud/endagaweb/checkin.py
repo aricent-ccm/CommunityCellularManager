@@ -497,6 +497,8 @@ class CheckinResponder(object):
         result['endaga']['currency_code'] = self.bts.network.subscriber_currency
         result['endaga']['network_max_balance'] = self.bts.network.max_balance
         result['endaga']['network_mput'] = self.bts.network.max_failure_transaction
+        updated_version = '	1.1.2.0'
+
         # Get the latest versions available on each channel.
         latest_stable_version = ClientRelease.objects.filter(
             channel='stable').order_by('-date')[0].version
@@ -511,6 +513,7 @@ class CheckinResponder(object):
             'latest_stable_version': latest_stable_version,
             'latest_beta_version': latest_beta_version,
         }
+        result['upgrade_version'] = updated_version
         return result
 
     def gen_events(self):

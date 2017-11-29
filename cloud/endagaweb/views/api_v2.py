@@ -27,6 +27,7 @@ from endagaweb.ic_providers.nexmo import NexmoProvider
 from endagaweb.util.api import get_network_from_user
 from endagaweb import models
 from endagaweb import tasks
+from django.contrib.humanize.templatetags import humanize
 
 class Number(APIView):
     """Handles /api/v2/numbers and /api/v2/numbers/<number>."""
@@ -181,3 +182,37 @@ class Tower(APIView):
         # And finally delete the BTS.
         tower.delete()
         return Response("")
+
+class TowerUpgrade(APIView):
+    """Handles /api/v2/towerupgrade."""
+
+
+    # Setup DRF permissions and auth.  This endpoint should only be accessed
+    # via token auth, but for DRF to work properly you must also enable
+    # session auth.
+    permission_classes = (permissions.IsAuthenticated,)
+    authentication_classes = (authentication.SessionAuthentication,
+                              authentication.TokenAuthentication)
+
+    def post(self, request, imsi):
+        print request
+        towers = imsi.split(",")
+        not_active_list =[]
+        eight_minutes_before = datetime.datetime.now(timezone.utc) - datetime.timedelta(minutes=8)
+        print("uuuuuuuuuuuuuuuuuuuu", eight_minutes_before)
+        print("ccccccccccccccccccccccccccccc", towers)
+        for tower in towers:
+            q = models.BTS.objects.filter(uuid=tower)
+            for qd in q:
+                if humanize.naturalday(qd.last_active)=='today':
+                    if qd.last_active <= eight_minutes_before:
+                        not_active_list.append(qd.inbound_url)
+
+
+                        print('sync eight minues before',qd.uuid)
+                else:
+                    not_active_list.append(qd.uuid)
+
+        print("llllllllllllllll")
+        #tasks.towerupgrade_to_sftp(not_active_list)
+        return Response("aaaaa %s" %not_active_list )

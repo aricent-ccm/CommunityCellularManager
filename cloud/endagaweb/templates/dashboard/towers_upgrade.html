@@ -1,0 +1,178 @@
+{% extends "dashboard/layout.html" %}
+{% comment %}
+Copyright (c) 2016-present, Facebook, Inc.
+All rights reserved.
+
+This source code is licensed under the BSD-style license found in the
+LICENSE file in the root directory of this source tree. An additional grant
+of patent rights can be found in the PATENTS file in the same directory.
+{% endcomment %}
+{% load apptags %}
+{% load humanize %}
+{% load crispy_forms_tags %}
+{% load render_table from django_tables2 %}
+{% load guardian_tags %}
+
+{% block title %}
+{% tmpl_const "SITENAME" %} | towers
+{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css" />
+<link rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css" />
+
+<style>
+  #map, #add-tower-map {
+    height: 400px;
+  }
+
+  #messages-container {
+    margin-top: 20px;
+  }
+
+  .awesome-marker, .awesome-marker-shadow {
+    -webkit-transition: margin 0.2s;
+       -moz-transition: margin 0.2s;
+         -o-transition: margin 0.2s;
+            transition: margin 0.2s;
+  }
+</style>
+
+{% if towers %}
+<div class="row">
+  <div class="col-xs-12 col-md-6">
+    {% render_table tower_table %}
+         <div class='modal fade' id='upgrade-tower'>
+            <div class='modal-dialog'>
+                <div class='modal-content'>
+                    <div class='modal-header'>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                        <h4 class='modal-title'>
+                            Confirmation
+                        </h4>
+                    </div>
+                    <div class='modal-body'>
+                        <p style="word-wrap: break-word">
+                            Are you sure you want to upgrade tower
+                             <strong id ="tower_uuid"></strong>?<br/>
+                             <input type="text" id="uuid" value="" >UserName</p>
+                             <input type="password" id="'pwd" value="" name="please provide password">Password
+                        </p>
+                    </div>
+                    <div class='modal-footer'>
+                        <button type='button' class='btn btn-default' data-dismiss='modal'>Cancel</button>
+                        <button class='btn btn-primary' type='button' id='deactivate-subscriber-submit'>Upgrade Tower</button>
+                        <div id='subscriber-messages-container'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+  </div>
+</div>
+         <div class="dropdown actions">
+            <button id ="actions" class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown" > Action(s)<span class="caret"></span></button>
+            <ul class="dropdown-menu">
+                <li><a data-toggle='modal' data-target='#upgrade-tower' href='#'><i class="fa fa-ban" aria-hidden="true"></i> Upgrade</a></li>
+            </ul>
+        </div>
+
+{% else %}
+<p>There are currently no base stations associated with this network.</p>
+{% endif %}
+
+{% endblock %}
+{% block js %}
+
+
+    <script type="text/javascript"
+            src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.10.0/jquery.validate.min.js"></script>
+    <script type="text/javascript">
+      var messageClearTimeout;
+          toggle();
+        function toggle(source) {
+          var imsi = $('.uuid_id:checked').length;
+          if(document.getElementById("uuid-select-all").checked==true){
+              $(':checkbox').each(function() {
+                this.checked = true;
+            });
+          }
+          if(document.getElementById("uuid-select-all").checked==false){
+            $(':checkbox').each(function() {
+                this.checked = false;
+            });
+            var imsi = $('.uuid_id:checked').length;
+        }
+        uuidSelected();
+    }
+    function uuidSelected(check){
+
+        var imsi = $('.uuid_id:checked').length;
+        if(imsi){
+            $('#actions').show();
+        } else{
+            $('#actions').hide();
+       }
+        var i=0;
+        var imsi_val=[];
+        var imsi_list = $('.uuid_id:checked');
+        $.each(imsi_list, function(key, val){
+            imsi_val[i++]=val.value;
+        });
+
+        $('#tower_uuid').html(imsi_val.join());
+
+
+
+    }
+
+   $('#deactivate-subscriber-submit').click(function(event) {
+      var i=0;
+      var imsi_val=[];
+      var imsi_list = $('.uuid_id:checked');
+      console.log("pppppp", imsi_list)
+      $.each(imsi_list, function(key, val){
+          imsi_val[i++]=val.value;
+      });
+      imsi_list_value = imsi_val.join()
+          // Show a 'working' message.
+          var message = 'Working..';
+          var html = "<div class='alert alert-success'>" + message + "</div>";
+          $('#subscriber-messages-container').html(html).show();
+          // Post to the endagaweb API.
+          $.ajax({
+            url: '/api/v2/towersupgrade/' + imsi_list_value,
+            type: 'POST',
+            beforeSend: function(xhr) {
+              xhr.setRequestHeader("X-CSRFToken", '{{ csrf_token }}');
+          },
+          success: function(response) {
+              // Show a success message after a small delay.
+              // Then, after some more time has passed, redirect back to /subscribers.
+              setTimeout(function() {
+                var message = 'Tower upgraded request sent to BTS.';
+                var html = "<div class='alert alert-success'>" + message + "</div>";
+                $('#subscriber-messages-container').html(html).show();
+            }, 1000);
+              clearTimeout(messageClearTimeout);
+              setTimeout(function() {
+                window.location.href = '/dashboard/towerUpgrade';
+            }, 2000);
+          },
+          error: function(response) {
+              // Show an error message after a small delay.
+              setTimeout(function() {
+                var message = 'Error: ' + response.status;
+                var html = "<div class='alert alert-danger'>" + message + "</div>";
+                $('#subscriber-messages-container').html(html).show();
+            }, 800);
+          },
+      });
+      });
+
+    </script>
+
+{% endblock %}

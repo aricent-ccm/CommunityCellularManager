@@ -26,7 +26,7 @@ import pytz
 
 from ccm.common import logger
 from core.config_database import ConfigDB
-
+import fnmatch
 def log_stream(log_path, window_start=None, window_end=None):
     """Given a path to a log file, this method returns an ordered
     stream of entries. This stream supports log rotation and archival
@@ -258,3 +258,35 @@ def verify_cert(_, cert_path, ca_path):
         logger.warning("Unable to verify %s against %s: %s" %
                        (cert_path, ca_path, ex.output))
     return False
+
+def upgrade_package(version):
+    try:
+        xd = [f for f in
+              os.listdir("/mnt/storage/") if
+              fnmatch.fnmatch(f, '*.gz')]
+        xf = xd[0]
+        print(xf)
+        # print xd.__str__()
+        xs = 'ccm-image'
+
+        pk = xf.split("ccm-image-v", 1)[1]
+        if pk.split('-', 1)[0] == str(version):
+            commnad = ('cp /mnt/storage/ %s /mnt/storage/.rootfs.tar.gz' %xf)
+            response = delegator.run(commnad)
+            if response.return_code != 0:
+                message = 'Error while upgrading endaga: %s' % response.out
+                logger.error(message)
+                return False
+            checksum_command =('md5sum /mnt/storage/.rootfs.tar.gz > /mnt/storage/.rootfs.md5')
+            checksum_response = delegator.run(checksum_command)
+            final_command = ('monolithicupdate')
+            final_response = delegator.run(final_command)
+            if final_response.return_code !=0:
+                message = 'Error while upgrading endaga: %s' % final_response.out
+                logger.error(message)
+                return False
+        return True
+    except subprocess.CalledProcessError as ex:
+        logger.error("Unable to verify ")
+
+    return True

@@ -46,7 +46,7 @@ from endagaweb.notifications import bts_up
 from endagaweb.util import currency as util_currency
 from endagaweb.util import dbutils as dbutils
 from googletrans.constants import LANGUAGES
-
+import fnmatch
 stripe.api_key = settings.STRIPE_API_KEY
 
 # These UsageEvent kinds do not count towards subscriber activity.
@@ -477,6 +477,20 @@ class BTS(models.Model):
             # Convert back to a string.
             numbers.append(str(number))
         return '.'.join(numbers)
+
+    def updated_version(self):
+        xd = [f for f in
+              os.listdir("/home/vagrant/cloud/") if
+              fnmatch.fnmatch(f, '*.gz')]
+        # print xd[0]
+        xf = xd[0]
+        print(xf)
+        # print xd.__str__()
+        xs = 'ccm-image'
+        pk = xf.split("ccm-image-v", 1)[1]
+        print(pk.split('-', 1))
+        print(pk.split('-', 1)[0][0:5])
+        return pk.split('-', 1)[0][0:5]
 
     @staticmethod
     def set_default_versions(sender, instance=None, created=False, **kwargs):
