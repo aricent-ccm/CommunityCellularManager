@@ -9,29 +9,30 @@ of patent rights can be found in the PATENTS file in the same directory.
 """
 
 import datetime
-import time
 import json
+import time
 
+import django_tables2 as tables
 from django import http
 from django import template
+from django.conf import settings
 from django.contrib import messages
+from django.core import exceptions
 from django.core import urlresolvers
 from django.db import transaction, IntegrityError
-from django.shortcuts import redirect, render
-import django_tables2 as tables
+from django.shortcuts import redirect
 from django.template.loader import get_template
+from googletrans.constants import LANGUAGES
 from guardian.shortcuts import get_objects_for_user
-from django.conf import settings
 
 from ccm.common.currency import parse_credits, humanize_credits, \
     CURRENCIES, DEFAULT_CURRENCY
 from endagaweb import models
 from endagaweb.forms import dashboard_forms
-from endagaweb.views.dashboard import ProtectedView
-from endagaweb.views import django_tables
 from endagaweb.forms import dashboard_forms as dform
-from django.core import exceptions
-from endagaweb import tasks
+from endagaweb.util import api
+from endagaweb.views import django_tables
+from endagaweb.views.dashboard import ProtectedView
 
 NUMBER_COUNTRIES = {
     'US': 'United States (+1)',
@@ -814,3 +815,188 @@ class NetworkBalanceLimit(ProtectedView):
             return redirect(urlresolvers.reverse('network_balance_limit'))
 
 
+class NetworkNotifications(ProtectedView):
+    """View event notifications for current network. """
+
+    permission_required = 'view_notification'
+
+    def get(self, request):
+        """Handles GET requests.
+        Show event-notification listing page"""
+        user_profile = models.UserProfile.objects.get(user=request.user)
+        network = user_profile.network
+        notifications = models.Notification.objects.filter(network=network)
+        notification_id = request.GET.get('id', None)
+        number = event = None
+        languages = {}
+        if notification_id:
+            response = {
+                'status': 'ok',
+                'messages': [],
+                'data': {}
+            }
+            notification = models.Notification.objects.get(id=notification_id)
+            try:
+                number = int(notification.event)
+            except ValueError:
+                event = str(notification.event).replace('_', ' ').upper()
+            notifications = models.Notification.objects.filter(
+                event=notification.event)
+            translations = {}
+            for notif in notifications:
+                translations[notif.language] = notif.translation
+            notification_data = {
+                'id': notification.id,
+                'event': event,
+                'number': number,
+                'message': notification.message,
+                'protected': notification.protected,
+                'translations': translations,
+                'type': notification.type,
+            }
+            response["data"] = notification_data
+            return http.HttpResponse(json.dumps(response),
+                                     content_type="application/json")
+        # Set the response context.
+        langs = notifications.values_list('language', flat=True).distinct()
+        for lg in langs:
+            languages[lg] = str(LANGUAGES[lg]).capitalize()
+        query = request.GET.get('query', None)
+        language = request.GET.get('language', None)
+        notifications = notifications.distinct('event')
+        l_notifications = q_notifications = None
+        notification_table = django_tables.NotificationTable(
+            list(notifications))
+        if query and len(query) > 0:
+            q_notifications = (notifications.filter(event__icontains=str(
+                query).replace(' ', '_')) |
+                             notifications.filter(type__icontains=query) |
+                             notifications.filter(
+                                 translation__icontains=query) |
+                             notifications.filter(message__icontains=query))
+            notification_table = django_tables.NotificationTable(
+                list(q_notifications))
+        if language and len(language) > 0:
+            l_notifications = notifications.filter(
+                language=language)
+            notification_table = django_tables.NotificationTableTranslated(
+                list(l_notifications))
+        if q_notifications and l_notifications:
+            notifications = q_notifications.filter(
+                language=language)
+            notification_table = django_tables.NotificationTableTranslated(
+                list(notifications))
+        tables.RequestConfig(request, paginate={'per_page': 10}).configure(
+            notification_table)
+        # default page language
+        if not language:
+            language = 'en'
+        context = {
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=models.Network),
+            'user_profile': user_profile,
+            'notification': dashboard_forms.NotificationForm(
+                language=languages,
+                initial={'type': 'automatic'},),
+            'notification_table': notification_table,
+            'records': len(list(notifications)),
+            'languages': languages,
+            'network': network,
+            'search': dform.NotificationSearchForm({'query': query,
+                                                    'language': language}),
+        }
+        # Render template.
+        template = get_template('dashboard/network_detail/notifications.html')
+        html = template.render(context, request)
+        return http.HttpResponse(html)
+
+
+class NetworkNotificationsEdit(ProtectedView):
+
+    permission_required = ['edit_notification', 'view_notification']
+
+    def post(self, request):
+        """Handles POST requests.
+        CRUD operations for notifications.
+        """
+        delete_notification = request.POST.getlist('id') or None
+        if delete_notification is None:
+            # Create/Edit the notifications
+            user_profile = models.UserProfile.objects.get(user=request.user)
+            network = user_profile.network
+            type = request.POST.get('type')
+            event = request.POST.get('event')
+            message = request.POST.get('message')
+            number = request.POST.get('number')
+            pk = request.POST.get('pk')
+            if event:
+                try:
+                    int(event)
+                    alert_message = 'Mapped events cannot be numeric only!'
+                    messages.error(request, alert_message,
+                                   extra_tags="alert alert-danger")
+                    return redirect(urlresolvers.reverse(
+                        'network-notifications'))
+                except ValueError:
+                    # to use event as key on client
+                    event = str(event).lower().strip().replace(' ', '_')
+            if number:
+                # Format number to 3 digits
+                event = str(number)
+                if int(number) < 10:
+                    event = '00' + event
+                elif int(number) < 100:
+                    event = '0' + event
+            if int(pk) != 0:
+                # Check for existing notification and update
+                notification = models.Notification.objects.get(id=pk)
+                all_notifications = models.Notification.objects.filter(
+                    event=notification.event)
+                for msg in all_notifications:
+                    msg.type = type
+                    if message:
+                        msg.message = message
+                    msg.translation = request.POST.get('lang_' + msg.language)
+                    if not msg.protected:
+                        msg.event = event
+                    msg.save()
+                resp = 'Updated Successfully!'
+                messages.success(request, resp)
+            else:
+                try:
+                    if not models.Notification.objects.filter(
+                            event=event,
+                            language__in=settings.BTS_LANGUAGES,
+                            network=network).exists():
+                        # Create new notifications
+                        languages = settings.BTS_LANGUAGES
+                        with transaction.atomic():
+                            for language in languages:
+                                translation = request.POST.get(
+                                    'lang_' + language)
+                                notification =\
+                                    models.Notification.objects.create(
+                                    network=network, language=language)
+                                notification.type = type
+                                notification.message = message
+                                notification.translation = translation
+                                notification.event = event
+                                notification.save()
+                        resp = 'Added Successfully!'
+                        messages.success(request, resp)
+                        return redirect(
+                            urlresolvers.reverse('network-notifications'))
+                except IntegrityError:
+                    resp = 'Notification Already Exists!'
+                    messages.warning(request, resp)
+                    return redirect(
+                        urlresolvers.reverse('network-notifications'))
+        else:
+            # Delete notifications
+            notifications = models.Notification.objects.filter(
+                id__in=delete_notification)
+            events = notifications.values_list('event', flat=True).distinct()
+            models.Notification.objects.filter(event__in=events).delete()
+            resp = 'Selected notification(s) deleted successfully.'
+            messages.success(request, resp)
+        return redirect(urlresolvers.reverse('network-notifications'))

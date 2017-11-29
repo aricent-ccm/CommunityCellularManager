@@ -17,6 +17,7 @@ import time
 import urllib
 import uuid
 
+import django.utils.timezone
 import django_tables2 as tables
 import humanize
 import pytz
@@ -45,11 +46,8 @@ from guardian.shortcuts import assign_perm, get_perms, remove_perm, \
 from guardian.shortcuts import (get_objects_for_user)
 from rest_framework.authtoken.models import Token
 
-from ccm.common.currency import parse_credits, humanize_credits, \
-    CURRENCIES
 from endagaweb import tasks
 from endagaweb.forms import dashboard_forms as dform
-from endagaweb.models import NetworkDenomination
 from ccm.common.currency import parse_credits, humanize_credits, CURRENCIES
 from endagaweb.models import (UserProfile, Subscriber, UsageEvent,
                               Network, PendingCreditUpdate, Number, BTS)
@@ -1090,9 +1088,9 @@ class UserManagement(ProtectedView):
             'users': user_table,
             'network': network,
             'user_profile': user_profile,
-            'networks': get_objects_for_user(request.user,
-                                             'view_network', klass=Network),
-            'permissions': sorted(network_permissions,reverse=True),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
+            'permissions': sorted(network_permissions, reverse=True),
             'roles': role,
             'total_users': len(users_in_network),
             'total_users_found': len(query_users),

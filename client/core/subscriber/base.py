@@ -22,7 +22,9 @@ import dateutil.parser as dateparser
 
 from ccm.common import crdt, logger
 from core.db.kvstore import KVStore
-from core.exceptions import SubscriberNotFound
+from core.exceptions import SubscriberNotFound, EventNotFound
+from core.freeswitch_strings import BASE_MESSAGES
+from itertools import count
 
 
 class BaseSubscriber(KVStore):
@@ -257,7 +259,6 @@ class BaseSubscriber(KVStore):
         return delta
 
     def subtract_credit(self, imsi, amount):
-        # type: (object, object) -> object
         """
         Deducts a subscriber's balance by a scalar delta
 
@@ -493,6 +494,13 @@ class BaseSubscriber(KVStore):
             return
         return status
 
+    def notif_status(self, update=None):
+        status = BaseBTSNotification()
+        if update is not None:
+            status.process_notifcaiton(update)
+            return
+        return status
+
 
 class BaseSubscriberStatus(KVStore):
     """
@@ -676,3 +684,105 @@ class BaseSubscriberStatus(KVStore):
             subscriber['state'] = 'active*'
             subscriber['ie_count'] = 0
         self.update_status(imsi, json.dumps(subscriber))
+
+
+class BaseBTSNotification(KVStore):
+    _ids = count(0)
+
+    def __init__(self, connector=None):
+        self.id = next(self._ids)
+        super(BaseBTSNotification, self).__init__('notification', connector,
+                                                  key_name='event',
+                                                  val_name='message')
+        # add only once.
+        if 2 > self.id:
+            for message in BASE_MESSAGES:
+                self.get_or_create(message, BASE_MESSAGES[message])
+
+    def get_notification(self, event=None):
+        if event:  # non-empty list, return requested notifications
+            return self.get(event)
+        elif event is None:  # empty list, return all
+            events = list(self.items())
+        else:
+            return {}  # empty list - return an empty dict
+        res = {}
+        for (event, message) in events:
+            res[event] = message
+        return res
+
+    def _set_notification(self, cur, event, message):
+        try:
+            self._update(cur, event, message)
+        except KeyError:
+            raise EventNotFound(event)
+
+    def get_events(self):
+        return {key for key in self.get_notification().keys()}
+
+    def delete_notification(self, event):
+        del self[event]
+
+    def create_notification(self, event, message):
+        def _add_if_absent(cur):
+            if self._get_option(cur, event):
+                raise ValueError(event)
+
+            self._insert(cur, event, message)
+
+        self._connector.with_cursor(_add_if_absent)
+
+    def update_notification(self, event, message):
+        def _update(cur):
+            self._set_notification(cur, event, message)
+
+        self._connector.with_cursor(_update)
+
+    def process_notifcaiton(self, notifications):
+        """
+        notifications: {event: some_event , message: some_translated_message}
+        Update notification messages w.r.t current bts language
+        :param event: Number(int type) or Event(string type)
+        """
+        bts_events = self.get_events()
+        cloud_events = set(notifications.keys())
+
+        events_to_add = cloud_events.difference(bts_events)
+        events_to_delete = bts_events.difference(cloud_events)
+        events_to_update = bts_events.intersection(cloud_events)
+
+        for event in events_to_delete:
+            self.delete_notification(event)
+
+        for event in events_to_update:
+            message = notifications[event]
+            try:
+                self.update_notification(event, message)
+            except EventNotFound as e:
+                logger.warning(
+                    "Notification sync fail! Event: %s is not found Error: %s"
+                    % (event, e))
+            except ValueError as e:
+                logger.error("Notification sync fail! Event: %s, Error: %s"
+                             % (event, e))
+                events_to_add.add(notifications)  # try to add it (again)
+
+        for event in events_to_add:
+            message = notifications[event]
+            self.create_notification(event, message)
+            try:
+                self.update_notification(event, message)
+            except (EventNotFound, ValueError) as e:
+                logger.error(
+                    "Notification sync fail! Event: %s Error: %s" %
+                    (event, e))
+
+    def get_or_create(self, key, message=None):
+        if message is not None:
+            # flag the message for translation,
+            # cloud to translate and revert back notification for next time
+            if self.get(key) is None:
+                message = str(message) + '*'
+                self.create_notification(event=key, message=message)
+                return
+        return self.get(key)

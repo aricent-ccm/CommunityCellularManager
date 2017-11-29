@@ -26,8 +26,10 @@ from endagaweb.models import Subscriber
 from endagaweb.models import TimeseriesStat
 from endagaweb.models import UsageEvent
 from endagaweb.util.parse_destination import parse_destination
-from endagaweb.models import NetworkDenomination
+from endagaweb.models import NetworkDenomination, Notification
 import dateutil.parser as dateparser
+from util.api import format_and_translate
+from django.db import IntegrityError
 
 class CheckinResponder(object):
 
@@ -58,6 +60,8 @@ class CheckinResponder(object):
             'subscribers': self.subscribers_handler,
             'radio': self.radio_handler,  # needs location_handler -kurtis
             'subscriber_status': self.subscriber_status_handler,
+            'bts_locale': self.bts_locale,
+            'notifications': self.notification_handler,
             # TODO: (kheimerl) T13270418 Add location update information
         }
 
@@ -164,6 +168,7 @@ class CheckinResponder(object):
         resp['subscribers'] = self._optimize('subscribers',
                                              self.gen_subscribers())
         resp['network_denomination'] = self.get_network_denomination()
+        resp['notification'] = self.gen_notifications()
         resp['events'] = self.gen_events()
         resp['sas'] = self.gen_spectrum()
         self.bts.save()
@@ -291,6 +296,49 @@ class CheckinResponder(object):
                 logging.warn('[subscriber_status_handler] subscriber %s does not'
                              ' exist.' % imsi)
 
+    def notification_handler(self, notifications):
+        """
+        Update the subscribers' state and validity info based on
+         what the client submits.
+        """
+        bts_events = list(dict(notifications).iterkeys())
+        events_exists = Notification.objects.filter(
+            event__in=bts_events, network=self.bts.network).values_list(
+            'event', flat=True)
+        new_events = list(set(bts_events)-set(events_exists))
+        for key in new_events:
+            event = key
+            message = notifications[key]
+            if message[-1] == '*':  # Base Messages by BTS
+                message = message[:-1]  # msg received flag down.
+                try:
+                    type = 'mapped'
+                    int(event)
+                except ValueError:
+                    type = 'automatic'
+                languages = settings.BTS_LANGUAGES
+                # format message for %(variable)s if any.
+                response = format_and_translate(message, language=languages)
+                for language in response:
+                    try:
+                        notification = Notification.objects.create(
+                            event=event, type=type, message=message,
+                            translation=response[language], language=language,
+                            network=self.bts.network, protected=True)
+                        notification.save()
+                    except IntegrityError:  # Don't break
+                        continue
+
+    def bts_locale(self, bts_locale):
+        if bts_locale in settings.BTS_LANGUAGES:
+            self.bts.locale = bts_locale
+            self.bts.save()
+        else:
+            self.bts.locale = 'en'
+            self.bts.save()
+            logging.error("client locale: '%s' does not exists in "
+                          "BTS LANGUAGES setting default as English."
+                          % bts_locale)
 
     def radio_handler(self, radio):
         if 'band' in radio and 'c0' in radio:
@@ -325,6 +373,18 @@ class CheckinResponder(object):
             res.append(data)
         return res
 
+    def gen_notifications(self):
+        """
+        Returns a notifications for that bts.
+        """
+        res = {}
+        notifications = Notification.objects.filter(network=self.bts.network,
+                                                    language=self.bts.locale)
+
+        if notifications:
+            for notification in notifications:
+                res.update({notification.event: notification.translation})
+        return res
 
     def gen_config(self):
         """Create a checkinresponse with Network and BTS config settings.
@@ -567,7 +627,8 @@ def handle_event(bts, event, destinations=None):
     usage_event = UsageEvent(
         date=date, kind=event['kind'], oldamt=event['oldamt'],
         newamt=event['newamt'], change=event['change'],
-        reason=event['reason'][:500], subscriber=sub, bts=bts)
+        reason=event['reason'][:500], subscriber=sub, bts=bts,
+        subscriber_role=sub.role)
     # Try to get a valid call duration.  This either comes from the
     # 'call_duration' key in new events or can be parsed from the reason.
     # If we can't figure it out, just set the default to zero from None.

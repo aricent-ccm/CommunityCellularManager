@@ -40,6 +40,8 @@ from guardian.shortcuts import get_objects_for_user
 from endagaweb.forms import dashboard_forms as dform
 from endagaweb import models
 from django.core import exceptions
+from endagaweb.util import api
+from googletrans.constants import LANGUAGES
 
 logger = logging.getLogger('endagaweb')
 
@@ -210,7 +212,6 @@ def change_expired_password(request):
         'networks': get_objects_for_user(request.user, 'view_network', klass=models.Network),
         'user_profile': user_profile,
         'network': network,
-        'user_profile': user_profile,
         'change_pass_form': dform.ChangePasswordForm(request.user),
 
     }
@@ -337,18 +338,18 @@ def role_default_permissions(request):
         # Default permissions on role selection
         business_analyst = (
             'view_activity', 'view_bts', 'view_denomination',
-            'view_graph', 'view_network',
+            'view_graph', 'view_network', 'view_notification',
             'view_report', 'view_subscriber',
         )
         loader = (
             'view_activity', 'view_bts', 'view_denomination',
-            'view_graph', 'view_network',
+            'view_graph', 'view_network', 'view_notification',
             'view_report', 'view_subscriber', 'adjust_credit',
             'send_sms', 'edit_subscriber',
         )
         partner = (
             'view_activity', 'view_bts', 'view_denomination',
-            'view_graph', 'view_network',
+            'view_graph', 'view_network', 'view_notification',
             'view_report', 'view_subscriber', 'send_sms',
             'edit_subscriber',
         )
@@ -369,7 +370,6 @@ def role_default_permissions(request):
         else:
             for i in permission:
                 role_permission.append(i)
-
         return JsonResponse({'permissions': list(role_permission)})
     return HttpResponseBadRequest()
 
@@ -383,3 +383,43 @@ def validate_password_strength(value):
     regex = "(?=.*[a-zA-Z])(?=.*\\d)(?=.*[!@#$%&*()_+=|<>?{}\\[\\]~-]).{8}"
     pattern = re.compile(regex)
     return bool(pattern.match(value))
+
+
+@login_required(login_url='/login/')
+def get_translation(request):
+    # For ajax call to translate on runtime
+    if request.method == 'GET':
+        context = {}
+        if 'message' in request.GET:
+            to_languages = settings.BTS_LANGUAGES
+            try:
+                message = request.GET['message']
+                context['translation'] = api.multiple_translations(
+                    message, *to_languages)
+                return JsonResponse(context)
+            except:
+                return HttpResponseBadRequest
+    return HttpResponseBadRequest()
+
+
+@login_required(login_url='/login/')
+def get_event(request):
+    # For ajax call to translate on runtime
+    if request.method == 'GET':
+        context = {'event': False}
+        network = UserProfile.objects.get(user=request.user).network
+        event = request.GET['event']
+        try:
+            number = int(event)  # Should Fail if event is automatic
+            if int(number) < 10:
+                event = '00' + event
+            elif int(number) < 100:
+                event = '0' + event
+        except ValueError:
+            event = str(event).lower().strip().replace(' ', '_')
+        if not models.Notification.objects.filter(event=event,
+                                                  network=network).exists():
+            context = {'event': True}
+        return JsonResponse(context)
+    return HttpResponseBadRequest()
+
