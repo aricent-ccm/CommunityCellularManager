@@ -1121,7 +1121,6 @@ class Network(models.Model):
     max_failure_transaction = models.PositiveIntegerField(blank=True, default=3)
 
     class Meta:
-        default_permissions = ()
         permissions = PERMISSIONS
 
     @property

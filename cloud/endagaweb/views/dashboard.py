@@ -1283,13 +1283,18 @@ class UserUpdate(ProtectedView):
             _user_profile = UserProfile.objects.get(user=_user)
             user_role = _user_profile.role
             # Setup available and assigned permissions
+            content = ContentType.objects.get(app_label='endagaweb',
+                                              model='network')
             existing_permissions = get_perms(_user, user_profile.network)
+
             user_perms = Permission.objects.filter(
-                codename__in=existing_permissions).exclude(
-                codename='view_network')
+                codename__in=existing_permissions,
+                content_type_id=content).exclude(codename='view_network')
+
             available_permissions = Permission.objects.filter(
                 codename__in=network_permissions).exclude(
                 codename__in=existing_permissions)
+
             permissions = [(a.id, a.name) for a in available_permissions]
             user_permissions = [(a.id, a.name) for a in user_perms]
             context = {
@@ -1303,7 +1308,7 @@ class UserUpdate(ProtectedView):
             return HttpResponse(json.dumps(context),
                                 content_type="application/json")
         except User.DoesNotExist:
-            message = 'Strange! %s not found!' % existing_user
+            message = 'Strange! %s not found!' % request.GET['user']
             raise LookupError(message)
 
     def post(self, request, *args, **kwargs):
