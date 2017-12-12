@@ -10,7 +10,6 @@ of patent rights can be found in the PATENTS file in the same directory.
 
 import csv
 import datetime
-import json
 import logging
 import operator
 import time
@@ -55,6 +54,8 @@ from endagaweb.util.currency import cents2mc
 from endagaweb.views import django_tables
 import json
 import django.utils.timezone
+from endagaweb.models import PERMISSIONS
+NETWORK_PERMISSIONS = PERMISSIONS
 
 
 class ProtectedView(PermissionRequiredMixin, View):
@@ -1076,6 +1077,14 @@ class UserManagement(ProtectedView):
             role = USER_ROLES
         content = ContentType.objects.get(
             app_label='endagaweb', model='network')
+
+        # cleans stale permissions, if any in network.
+        stale_permissions = Permission.objects.filter(
+            content_type_id=content.id).exclude(
+            codename__in=[a[0] for a in NETWORK_PERMISSIONS])
+        if stale_permissions:
+            stale_permissions.delete()
+
         network_permissions = Permission.objects.filter(
             codename__in=available_permissions,
             content_type_id=content.id).exclude(
@@ -1267,7 +1276,6 @@ class UserUpdate(ProtectedView):
         user = User.objects.get(id=user_profile.user_id)
         # Admin permissions on current network
         network_permissions = get_perms(request.user, network)
-
         if not user.is_superuser:  # if cloud admin
             roles = USER_ROLES[0:len(USER_ROLES) - 1]
         else:  # if network admin
@@ -1277,15 +1285,33 @@ class UserUpdate(ProtectedView):
             if len(existing_user) == 0:
                 existing_user = request.GET['id']
                 _user = User.objects.get(id=existing_user)
+                # get_perms fails to get permissions for users
+                # who are inactive i.e for blocked users
+                # https://github.com/django-guardian/django-guardian/issues/343
+                if not _user.is_active:
+                    _user.is_active = True  # setting active just to get perms
+                    existing_permissions = get_perms(_user,
+                                                     user_profile.network)
+                    _user.is_active = False # setting back to inactive
+                else:
+                    existing_permissions = get_perms(_user,
+                                                     user_profile.network)
             else:
                 _user = User.objects.get(email=existing_user)
+                if not _user.is_active:
+                    _user.is_active = True # setting active to get perms
+                    existing_permissions = get_perms(_user,
+                                                     user_profile.network)
+                    _user.is_active = False # setting back to inactive
+                else:
+                    existing_permissions = get_perms(_user,
+                                                     user_profile.network)
             update_user = True
             _user_profile = UserProfile.objects.get(user=_user)
             user_role = _user_profile.role
             # Setup available and assigned permissions
             content = ContentType.objects.get(app_label='endagaweb',
                                               model='network')
-            existing_permissions = get_perms(_user, user_profile.network)
 
             user_perms = Permission.objects.filter(
                 codename__in=existing_permissions,
