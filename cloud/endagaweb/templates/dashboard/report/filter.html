@@ -5,7 +5,7 @@
               method="post" role="form" onsubmit="setloading()">
             {% csrf_token %}
 
-            <div class="form-group col-md-12" {% if filter == 'SMS' %} style='display:none;' {% endif %}>
+            <div class="form-group col-md-12" {% if filter == 'SMS' or filter == 'Subscriber' %}   style='display:none;' {% endif %}>
                 <label class="control-label col-md-1">Reports</label>
                 <div class="col-md-11" style="padding-left: 0px;">
 

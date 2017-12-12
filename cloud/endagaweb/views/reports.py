@@ -165,8 +165,7 @@ class SubscriberReportView(BaseReport):
     def __init__(self, **kwargs):
         template = "dashboard/report/subscriber.html"
         url_namespace = "subscriber-report"
-        reports = {'Subscriber': ['Subscriber Activity',
-                                  'Subscriber Status']}
+        reports = {'Subscriber': ['Subscriber Activity']}
         super(SubscriberReportView, self).__init__(reports, template,
                                                    url_namespace, **kwargs)
 
