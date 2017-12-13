@@ -22,9 +22,10 @@ from ccm.common.currency import CURRENCIES
 from django.utils import timezone as django_utils_timezone
 from django.db.models import Q
 from django.db.models import Avg
-report_keys = ('Top Up', 'Call & SMS', 'Retailer', 'Waterfall')
+report_keys = (#'Top Up',
+               'Call & SMS', 'Retailer', 'Waterfall')
 reports_dict = {
-    'Top Up': ['Amount Based', 'Count Based'],
+    #'Top Up': ['Amount Based', 'Count Based'],
     'Call and SMS': ['SMS Billing', 'Call and SMS Billing', 'Call Billing'],
     'Retailer': ['Retailer Recharge', 'Retailer Load Transfer'],
     'Waterfall': ['Activation', 'Loader', 'Reload Rate', 'Reload Amount',
