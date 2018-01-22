@@ -507,8 +507,8 @@ class NotificationForm(forms.Form):
     type = forms.ChoiceField(required=True, label='', help_text=help_text,
                              choices=types,
                              widget=forms.RadioSelect(
-                                 attrs={'title': 'Notification type'}), )
-
+                                 attrs={'title': 'Notification type',
+                                        }), )
     event_info = "<span id='event_exists' hidden='hidden' style='color:red'>" \
                  "Notification already exists!</span>"
     event = forms.CharField(required=True, help_text=event_info,
@@ -516,9 +516,23 @@ class NotificationForm(forms.Form):
                                 attrs={'title': 'alphabets or '
                                                 'alphanumeric only',
                                        'style': 'width:300px',
-                                       'onchange': 'checkEvent()',
+                                       'onchange': 'checkEvent(event);'
+                                                   'enableUpdate();',
                                        }), label='Events')
+    info = "Details on how to add message..."
+    number = forms.IntegerField(required=True, disabled=True, min_value=1,
+                                max_value=999, widget=forms.NumberInput(
+            attrs={'class': 'form-control', 'pattern': '[0-9]{3}',
+                   'title': 'numerical input only', 'style': 'width:100px',
+                   'oninvalid': "setCustomValidity('Enter number "
+                                "(max: 3 digits)')",
+                   'onchange': "try{"
+                               "setCustomValidity('')}"
+                               "catch(e){}; "
+                               "checkEvent(number); enableUpdate();",
 
+                   }),
+                                )
     edit = "<span id='edit' hidden='hidden'> Click <a href='#' " \
            "onclick='editMessage()'>Edit</a> to change.</span>"
     edit = safestring.mark_safe(edit)
@@ -538,18 +552,6 @@ class NotificationForm(forms.Form):
                                          'onchange': 'getTranslation(this)',
                                          }
                               ))
-    info = "Details on how to add message..."
-    number = forms.IntegerField(required=True, disabled=True, min_value=1,
-                                max_value=999, widget=forms.NumberInput(
-            attrs={'class': 'form-control', 'pattern': '[0-9]{3}',
-                   'title': 'numerical input only', 'style': 'width:100px',
-                   'oninvalid': "setCustomValidity('Enter number "
-                                "(max: 3 digits)')",
-                   'onchange': "try{"
-                               "setCustomValidity('')}"
-                               "catch(e){}; checkEvent();",
-                   }),
-                                )
     pk = forms.CharField(widget=forms.HiddenInput())
 
     def __init__(self, language=None, *args, **kwargs):

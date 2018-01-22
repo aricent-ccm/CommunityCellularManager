@@ -459,12 +459,12 @@ $(function() {
     var notification_type = $('form input[name=type]:checked').val();
     if (notification_type == 'mapped') {
       $('#id_number').prop('disabled', false);
-      $('#id_event').val('');
+      //$('#id_event').val('');
       $('#id_event').prop('disabled', true);
     } else {
       $('#id_number').prop('disabled', true);
       $('#id_event').prop('disabled', false);
-      $('#id_number').val('');
+      //$('#id_number').val('');
     }
   });
 });
@@ -515,12 +515,11 @@ function editNotification() {
               $('#lang_'+key+'_get').val(response.data.translations[key]);
           }
           if (response.data.protected){
-             $('#id_event').attr({'disabled':'disabled'});
-             $('#id_number').attr({'disabled':'disabled'});
              $('[id^="id_type"]').attr({'disabled':'disabled'});
+             $('#id_number').prop('disabled', true);
+             $('#id_event').prop('disabled', true);
                 }else{
-             $('#id_event').removeAttr('disabled');
-             $('#id_number').removeAttr('disabled');
+             $('[id^="id_type"]').removeAttr({'disabled':'disabled'});
           }
       },
       error: function (response) {
@@ -616,11 +615,11 @@ function enableUpdate(){
   $('#add-notification-submit').removeAttr('disabled');
 }
 
-function checkEvent(){
-    if ($('#id_event').val().length > 0){
-        var event = $('#id_event').val();
-    } else {
+function checkEvent(event_type){
+    if (event_type.type == 'number'){
         var event = $('#id_number').val();
+    } else {
+        var event = $('#id_event').val();
     }
     $.ajax({
         url: "/dashboard/network/notification/event?event=" + event,

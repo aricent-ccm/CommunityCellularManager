@@ -867,20 +867,21 @@ class NetworkNotifications(ProtectedView):
         l_notifications = q_notifications = None
         notification_table = django_tables.NotificationTable(
             list(notifications))
-        if query and len(query) > 0:
-            q_notifications = (notifications.filter(event__icontains=str(
-                query).replace(' ', '_')) |
-                             notifications.filter(type__icontains=query) |
-                             notifications.filter(
-                                 translation__icontains=query) |
-                             notifications.filter(message__icontains=query))
-            notification_table = django_tables.NotificationTable(
-                list(q_notifications))
         if language and len(language) > 0:
-            l_notifications = notifications.filter(
-                language=language)
+            l_notifications = notifications.filter(language=language)
             notification_table = django_tables.NotificationTableTranslated(
                 list(l_notifications))
+        if query and len(query) > 0:
+            q_notifications = (notifications.filter(
+                event__icontains=str(query).replace(' ', '_')) |
+                               notifications.filter(
+                                   type__icontains=query) |
+                               notifications.filter(
+                                   translation__icontains=query) |
+                               notifications.filter(
+                                   message__icontains=query))
+            notification_table = django_tables.NotificationTable(
+                list(q_notifications))
         if q_notifications and l_notifications:
             notifications = q_notifications.filter(
                 language=language)
@@ -953,7 +954,8 @@ class NetworkNotificationsEdit(ProtectedView):
                 all_notifications = models.Notification.objects.filter(
                     event=notification.event)
                 for msg in all_notifications:
-                    msg.type = type
+                    if type:
+                        msg.type = type
                     if message:
                         msg.message = message
                     msg.translation = request.POST.get('lang_' + msg.language)
