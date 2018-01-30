@@ -802,7 +802,12 @@ class ActivityView(ProtectedView):
         # - If it's a POST, we should replace whatever is in the session.
         # - If it's a GET with no page variable, we should blank out the
         #   session.
-        if request.method == "POST":
+        if request.method == "POST" and request.POST.get('password')!=None:
+            if (request.user.check_password(request.POST.get('password'))):
+                response = {'status': 'ok'}
+                return HttpResponse(json.dumps(response),
+                                    content_type="application/json")
+        elif request.method == "POST":
             page = 1
             request.session['keyword'] = request.POST.get('keyword', None)
             request.session['start_date'] = request.POST.get('start_date',
@@ -834,6 +839,7 @@ class ActivityView(ProtectedView):
 
         # Determine if there has been any activity on the network (if not, we
         # won't show the filter boxes).
+        page = request.GET.get('page', 1)
         network_has_activity = UsageEvent.objects.filter(
             network=network).exists()
         # Read filtering params out of the session.
