@@ -78,7 +78,7 @@ TEMPLATES = [
 
 TEMPLATE_CONSTANTS = {
     'SITENAME': os.environ.get('ENDAGA_SITENAME', "Endaga"),
-    'SUPPORT_EMAIL': os.environ.get('SUPPORT_EMAIL', "support@example.com"),
+    'SUPPORT_EMAIL': os.environ.get('SUPPORT_EMAIL', "endaga@etagecom-v2.net"),
 }
 
 MIDDLEWARE_CLASSES = (
@@ -301,10 +301,17 @@ CELERY_QUEUES = {
     }
 }
 
-EMAIL_BACKEND = 'django_mailgun.MailgunBackend'
-MAILGUN_ACCESS_KEY = os.environ.get("MAILGUN_ACCESS_KEY", 'key-testkeypleaseignore')
-MAILGUN_SERVER_NAME = os.environ.get("MAILGUN_SERVER_NAME", '')
-
+#EMAIL_BACKEND = 'django_mailgun.MailgunBackend'
+#MAILGUN_ACCESS_KEY = os.environ.get("MAILGUN_ACCESS_KEY", 'key-testkeypleaseignore')
+#MAILGUN_SERVER_NAME = os.environ.get("MAILGUN_SERVER_NAME", '')
+# AWS SMTP settings
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'email-smtp.us-east-1.amazonaws.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+DEFAULT_FROM_EMAIL = 'endaga@etagecom-v2.net'
+EMAIL_HOST_USER = os.environ['SMTP_USERNAME'],
+EMAIL_HOST_PASSWORD = os.environ['SMTP_PASSWORD'],
 # File uploads
 DEFAULT_FILE_STORAGE = 'endagaweb.util.storage.DatabaseStorage'
 
