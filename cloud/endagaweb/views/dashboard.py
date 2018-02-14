@@ -56,7 +56,7 @@ import json
 import django.utils.timezone
 from endagaweb.models import PERMISSIONS
 NETWORK_PERMISSIONS = PERMISSIONS
-
+from django.core.cache import cache
 
 class ProtectedView(PermissionRequiredMixin, View):
     """ A class-based view that requires a login. """
@@ -251,32 +251,12 @@ class SubscriberListView(ProtectedView):
         network = user_profile.network
         currency = CURRENCIES[network.subscriber_currency]
         all_subscribers = Subscriber.objects.filter(network=network)
-
-        query = request.GET.get('query', None)
-        if query:
-            # Get actual subs with partial IMSI matches or partial name matches.
-            query_subscribers = (
-                network.subscriber_set.filter(imsi__icontains=query) |
-                network.subscriber_set.filter(name__icontains=query))
-            # Get ids of subs with partial number matches.
-            sub_ids = network.number_set.filter(
-                number__icontains=query
-            ).values_list('subscriber_id', flat=True)
-            # Or them together to get list of actual matching subscribers.
-            query_subscribers |= network.subscriber_set.filter(
-                id__in=sub_ids)
-        else:
-            # Display all subscribers.
-            query_subscribers = all_subscribers
-
-        # Setup the subscriber table.
-        subscriber_table = django_tables.SubscriberTable(
-            list(query_subscribers))
-        tables.RequestConfig(request, paginate={'per_page': 15}).configure(
-            subscriber_table)
-
-        # If a CSV has been requested, return that here.
         if request.method == "GET" and request.GET.get('csv', False):
+            if None != cache.get('query_subscribers'):
+                query_subscribers = cache.get('query_subscribers')
+            else:
+                query_subscribers = all_subscribers
+
             headers = [
                 'IMSI',
                 'Name',
@@ -295,7 +275,7 @@ class SubscriberListView(ProtectedView):
             writer.writerow(headers)
             # Forcibly limit to 7000 items.
             timezone = pytz.timezone(user_profile.timezone)
-            for subscriber in all_subscribers[:7000]:
+            for subscriber in query_subscribers[:7000]:
                 status = 'camped' if subscriber.is_camped else 'not camped'
                 writer.writerow([
                     subscriber.imsi,
@@ -308,22 +288,51 @@ class SubscriberListView(ProtectedView):
                     subscriber.role,
                 ])
             return response
+        else:
+            query = request.GET.get('query', None)
+            cache.set('query_subscribers', None)
 
-        # Render the response with context.
-        context = {
-            'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network',
-                                             klass=Network),
-            'currency': CURRENCIES[network.subscriber_currency],
-            'user_profile': user_profile,
-            'total_number_of_subscribers': len(all_subscribers),
-            'number_of_filtered_subscribers': len(query_subscribers),
-            'subscriber_table': subscriber_table,
-            'search': dform.SubscriberSearchForm({'query': query}),
-        }
-        template = get_template("dashboard/subscribers.html")
-        html = template.render(context, request)
-        return HttpResponse(html)
+            if query:
+                # Get actual subs with partial IMSI matches or partial name matches.
+                query_subscribers = (
+                    network.subscriber_set.filter(imsi__icontains=query) |
+                    network.subscriber_set.filter(name__icontains=query))
+                # Get ids of subs with partial number matches.
+                sub_ids = network.number_set.filter(
+                    number__icontains=query
+                ).values_list('subscriber_id', flat=True)
+                # Or them together to get list of actual matching subscribers.
+                query_subscribers |= network.subscriber_set.filter(
+                    id__in=sub_ids)
+                # request.session['query_subscribers'] = json.dump(query_subscribers)
+                cache.set('query_subscribers', query_subscribers)
+
+            else:
+                # Display all subscribers.
+                query_subscribers = all_subscribers
+
+            # Setup the subscriber table.
+            #
+            subscriber_table = django_tables.SubscriberTable(
+                list(query_subscribers))
+            tables.RequestConfig(request, paginate={'per_page': 15}).configure(
+                subscriber_table)
+
+            # Render the response with context.
+            context = {
+                'network': network,
+                'networks': get_objects_for_user(request.user, 'view_network',
+                                                 klass=Network),
+                'currency': CURRENCIES[network.subscriber_currency],
+                'user_profile': user_profile,
+                'total_number_of_subscribers': len(all_subscribers),
+                'number_of_filtered_subscribers': len(query_subscribers),
+                'subscriber_table': subscriber_table,
+                'search': dform.SubscriberSearchForm({'query': query}),
+            }
+            template = get_template("dashboard/subscribers.html")
+            html = template.render(context, request)
+            return HttpResponse(html)
 
     def post(self, request, *args, **kwargs):
         # Added to check password to download the csv

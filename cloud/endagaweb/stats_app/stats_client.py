@@ -295,7 +295,7 @@ class StatsClientBase(object):
                 elif round(value) != round(value, 2):
                     rounded_values.append(round(value, 2))
                 elif param =='add_money':
-                    rounded_values.append(round(value*0.0001, 2))
+                    rounded_values.append(round(value*0.00001, 2))
                 else:
                     rounded_values.append(value)
         return zip(timestamps, rounded_values)

@@ -310,8 +310,8 @@ EMAIL_HOST = 'email-smtp.us-east-1.amazonaws.com'
 EMAIL_USE_TLS = True
 EMAIL_PORT = 587
 DEFAULT_FROM_EMAIL = 'endaga@etagecom-v2.net'
-EMAIL_HOST_USER = os.environ['SMTP_USERNAME'],
-EMAIL_HOST_PASSWORD = os.environ['SMTP_PASSWORD'],
+EMAIL_HOST_USER = os.environ['SMTP_USERNAME']
+EMAIL_HOST_PASSWORD = os.environ['SMTP_PASSWORD']
 # File uploads
 DEFAULT_FILE_STORAGE = 'endagaweb.util.storage.DatabaseStorage'
 
