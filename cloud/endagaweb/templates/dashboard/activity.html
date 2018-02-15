@@ -85,11 +85,12 @@ of patent rights can be found in the PATENTS file in the same directory.
     <table class="table table-striped">
     <thead>
         <tr>
-          <th class="col-xs-3">Date</th>
-            <th class="col-xs-3">Subscriber</th>
-            <th class="col-xs-5">Activity</th>
-            <th class="col-xs-2">Cost</th>
-            <th class="col-xs-2">Balance</th>
+          <th class="col-xs-2">Date</th>
+            <th class="col-xs-2">Subscriber</th>
+            <th class="col-xs-3">Activity</th>
+            <th class="col-xs-1">Cost</th>
+            <th class="col-xs-1">Balance</th>
+            <th class="col-xs-2">BTS</th>
         </tr>
         {% for event in events %}
         <tr>
@@ -121,6 +122,11 @@ of patent rights can be found in the PATENTS file in the same directory.
               {% endif %}
             </td>
             <td>{% currency event.newamt %}</td>
+            {% if event.bts.nickname == None %}
+                <td>{{ event.bts.uuid }}</td>
+            {% else %}
+                <td>{{ event.bts.nickname }}</td>
+            {% endif %}
         </tr>
         {% endfor %}
     </table>

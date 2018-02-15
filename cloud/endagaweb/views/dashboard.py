@@ -55,6 +55,7 @@ from endagaweb.views import django_tables
 import json
 import django.utils.timezone
 from endagaweb.models import PERMISSIONS
+
 NETWORK_PERMISSIONS = PERMISSIONS
 from django.core.cache import cache
 
@@ -70,16 +71,17 @@ class ProtectedView(PermissionRequiredMixin, View):
         PermissionRequiredMixin.raise_exception = True
         return super(ProtectedView, self).dispatch(request, *args, **kwargs)
 
+
 """
 Views for logged in users.
 """
 USER_ROLES = ('Business Analyst', 'Loader',
               'Partner', 'Network Admin')
 
-
 logger = logging.getLogger(__name__)
 
 stripe.api_key = settings.STRIPE_API_KEY
+
 
 # views
 @login_required
@@ -90,15 +92,17 @@ def addcard(request):
         network = user_profile.network
         if network.update_card(token):
             messages.add_message(request, messages.INFO, "addcard_saved",
-                    extra_tags="billing_resp_code")
+                                 extra_tags="billing_resp_code")
             return redirect("/dashboard/billing")
         else:
             # The card has been declined
             messages.add_message(request, messages.ERROR,
-                    "addcard_stripe_declined", extra_tags="billing_resp_code")
+                                 "addcard_stripe_declined",
+                                 extra_tags="billing_resp_code")
             return redirect("/dashboard/billing")
     else:
         return HttpResponseBadRequest()
+
 
 @login_required
 def addmoney(request):
@@ -145,7 +149,8 @@ class DashboardView(ProtectedView):
             network=network).exists()
         context = {
             'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'user_profile': user_profile,
             'network_id': network.id,
             'current_time_epoch': int(time.time()),
@@ -173,13 +178,14 @@ def profile_view(request):
     })
     context = {
         'network': network,
-        'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+        'networks': get_objects_for_user(request.user, 'view_network',
+                                         klass=Network),
         'user_profile': user_profile,
         'contact_form': contact_form,
         'change_pass_form': dform.ChangePasswordForm(request.user),
         'update_notify_emails_form': dform.NotifyEmailsForm(
             {'notify_emails': user_profile.network.notify_emails}),
-        'update_notify_numbers_form' : dform.NotifyNumbersForm(
+        'update_notify_numbers_form': dform.NotifyNumbersForm(
             {'notify_numbers': user_profile.network.notify_numbers}),
     }
     template = get_template("dashboard/profile.html")
@@ -208,7 +214,8 @@ def billing_view(request):
         transactions = transaction_paginator.page(num_pages)
     context = {
         'network': network,
-        'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+        'networks': get_objects_for_user(request.user, 'view_network',
+                                         klass=Network),
         'user_profile': user_profile,
         'transactions': transactions
     }
@@ -217,7 +224,8 @@ def billing_view(request):
     msgs = messages.get_messages(request)
     for m in msgs:
         if "billing_resp_code" in m.tags:
-            context[m.message] = True # pass the message on to the template as-is
+            context[
+                m.message] = True  # pass the message on to the template as-is
 
     if network.stripe_card_type == "American Express":
         context['card_type'] = 'AmEx'
@@ -270,7 +278,7 @@ class SubscriberListView(ProtectedView):
             response['Content-Disposition'] = ('attachment;filename='
                                                '"etage-subscribers-%s.csv"') \
                                               % (
-                                              datetime.datetime.now().date(),)
+                                                  datetime.datetime.now().date(),)
             writer = csv.writer(response)
             writer.writerow(headers)
             # Forcibly limit to 7000 items.
@@ -296,7 +304,11 @@ class SubscriberListView(ProtectedView):
                 # Get actual subs with partial IMSI matches or partial name matches.
                 query_subscribers = (
                     network.subscriber_set.filter(imsi__icontains=query) |
-                    network.subscriber_set.filter(name__icontains=query))
+                    network.subscriber_set.filter(name__icontains=query)|
+                    network.subscriber_set.filter(
+                        bts_id__uuid__icontains=query)|
+                    network.subscriber_set.filter(
+                        bts_id__nickname__icontains=query))
                 # Get ids of subs with partial number matches.
                 sub_ids = network.number_set.filter(
                     number__icontains=query
@@ -348,7 +360,7 @@ class SubscriberListView(ProtectedView):
 class SubscriberUpdateRole(ProtectedView):
     """Updates Subscriber Role ( Subscriber, Retailer, Test)
     """
-    permission_required = ['edit_subscriber','view_subscriber']
+    permission_required = ['edit_subscriber', 'view_subscriber']
 
     def post(self, request, *args, **kwargs):
         subscriber_imsi_list = request.POST.getlist('imsi_val[]')
@@ -395,11 +407,12 @@ class SubscriberInfo(ProtectedView):
         # Set the context with various stats.
         context = {
             'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'currency': CURRENCIES[network.subscriber_currency],
             'user_profile': user_profile,
             'subscriber': subscriber,
-             #'valid_through': subscriber.valid_through,
+            # 'valid_through': subscriber.valid_through,
         }
         try:
             context['created'] = subscriber.usageevent_set.order_by(
@@ -541,8 +554,8 @@ class SubscriberActivity(ProtectedView):
             context_end_date = end_date.strftime(self.datepicker_time_format)
 
         context = {
-            'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'currency': CURRENCIES[network.subscriber_currency],
             'user_profile': user_profile,
             'subscriber': subscriber,
@@ -582,12 +595,12 @@ class SubscriberSendSMS(ProtectedView):
         # Set the response context.
         context = {
             'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'user_profile': user_profile,
             'subscriber': subscriber,
             'send_sms_form': dform.SubscriberSendSMSForm(
                 initial=initial_form_data),
-            'network': network
         }
         # Render template.
         template = get_template('dashboard/subscriber_detail/send_sms.html')
@@ -628,7 +641,7 @@ class SubscriberSendSMS(ProtectedView):
 
 class SubscriberAdjustCredit(ProtectedView):
     """Adjust credit for a single subscriber."""
-    permission_required = ['adjust_credit','view_subscriber']
+    permission_required = ['adjust_credit', 'view_subscriber']
 
     def get(self, request, imsi=None):
         """Handles GET requests."""
@@ -686,7 +699,7 @@ class SubscriberAdjustCredit(ProtectedView):
         try:
             currency = network.subscriber_currency
             amount = parse_credits(request.POST['amount'],
-                    CURRENCIES[currency]).amount_raw
+                                   CURRENCIES[currency]).amount_raw
             if abs(amount) > 2147483647:
                 raise ValueError(error_text)
         except ValueError:
@@ -740,7 +753,8 @@ class SubscriberEdit(ProtectedView):
         }
         context = {
             'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'user_profile': user_profile,
             'subscriber': subscriber,
             'subscriber_info_form': dform.SubscriberInfoForm(
@@ -764,7 +778,7 @@ class SubscriberEdit(ProtectedView):
         except Subscriber.DoesNotExist:
             return HttpResponseBadRequest()
         if (request.POST.get('name') and
-                subscriber.name != request.POST.get('name')):
+                    subscriber.name != request.POST.get('name')):
             subscriber.name = request.POST.get('name')
             subscriber.save()
         if request.POST.get('prevent_automatic_deactivation'):
@@ -811,11 +825,12 @@ class ActivityView(ProtectedView):
         # - If it's a POST, we should replace whatever is in the session.
         # - If it's a GET with no page variable, we should blank out the
         #   session.
-        if request.method == "POST" and request.POST.get('password')!=None:
-            if (request.user.check_password(request.POST.get('password'))):
+        if request.method == "POST" and request.POST.get('password') != None:
+            if request.user.check_password(request.POST.get('password')):
                 response = {'status': 'ok'}
                 return HttpResponse(json.dumps(response),
                                     content_type="application/json")
+
         elif request.method == "POST":
             page = 1
             request.session['keyword'] = request.POST.get('keyword', None)
@@ -890,13 +905,14 @@ class ActivityView(ProtectedView):
             # TODO(shaddi): use a filename that captures the search terms?
             response['Content-Disposition'] = ('attachment;filename='
                                                '"etage-%s.csv"') \
-                % (datetime.datetime.now().date(),)
+                                              % (
+                                              datetime.datetime.now().date(),)
             writer = csv.writer(response)
             writer.writerow(headers)
             # Forcibly limit to 7000 items.
             timezone = pytz.timezone(profile.timezone)
             for e in events[:7000]:
-                #first strip the IMSI off if present
+                # first strip the IMSI off if present
                 subscriber = e.subscriber_imsi
                 if e.subscriber_imsi.startswith('IMSI'):
                     subscriber = e.subscriber_imsi[4:]
@@ -927,7 +943,7 @@ class ActivityView(ProtectedView):
                     if e.newamt else None,
                     e.uploaded_bytes,
                     e.downloaded_bytes,
-                    ])
+                ])
             return response
         # Otherwise, we paginate.
         event_paginator = Paginator(events, 25)
@@ -942,14 +958,14 @@ class ActivityView(ProtectedView):
         # Setup the context for the template.
         context = {
             'network': network,
-            'networks': get_objects_for_user(request.user, 'view_network', klass=Network),
+            'networks': get_objects_for_user(request.user, 'view_network',
+                                             klass=Network),
             'currency': CURRENCIES[network.subscriber_currency],
             'user_profile': profile,
             'network_has_activity': network_has_activity,
             'events': events,
             'event_count': event_count,
         }
-
 
         # Setup various stuff for filter form generation.
         service_names = ["SMS", "Call", "GPRS", "Transfer", "Other"]
@@ -1019,7 +1035,7 @@ class ActivityView(ProtectedView):
         return events
 
     def _search_events(self, profile, query_string, orig_events):
-            """ Searches for events matching space-separated keyword list
+        """ Searches for events matching space-separated keyword list
 
             Args:
                 a UserProfile object
@@ -1029,31 +1045,33 @@ class ActivityView(ProtectedView):
             Returns:
                 a QuerySet that matches the query string
             """
-            network = profile.network
-            queries = query_string.split()
+        network = profile.network
+        queries = query_string.split()
 
-            res_events = UsageEvent.objects.none()
-            for query in queries:
-                events = orig_events
-                events = (events.filter(kind__icontains=query)
-                          | events.filter(reason__icontains=query)
-                          | events.filter(subscriber__name__icontains=query)
-                          | events.filter(subscriber__imsi__icontains=query)
-                          | events.filter(subscriber_imsi__icontains=query))
+        res_events = UsageEvent.objects.none()
+        for query in queries:
+            events = orig_events
+            events = (events.filter(kind__icontains=query)
+                      | events.filter(reason__icontains=query)
+                      | events.filter(subscriber__name__icontains=query)
+                      | events.filter(subscriber__imsi__icontains=query)
+                      | events.filter(subscriber_imsi__icontains=query)
+                      | events.filter(bts_uuid__icontains=query)
+                      | events.filter(bts__nickname__icontains=query))
 
-                # Get any numbers that match, and add their associated
-                # subscribers' events to the results
-                potential_subs = (
-                    Number.objects.filter(number__icontains=query)
-                                  .values('subscriber')
-                                  .filter(subscriber__network=network)
-                                  .distinct())
-                if potential_subs:
-                    events |= (UsageEvent.objects
-                                .filter(subscriber__in=potential_subs))
+            # Get any numbers that match, and add their associated
+            # subscribers' events to the results
+            potential_subs = (
+                Number.objects.filter(number__icontains=query)
+                    .values('subscriber')
+                    .filter(subscriber__network=network)
+                    .distinct())
+            if potential_subs:
+                events |= (UsageEvent.objects
+                           .filter(subscriber__in=potential_subs))
 
-                res_events |= events
-            return res_events
+            res_events |= events
+        return res_events
 
 
 class UserManagement(ProtectedView):
@@ -1119,7 +1137,7 @@ class UserManagement(ProtectedView):
             'total_users': len(users_in_network),
             'total_users_found': len(query_users),
             'search': dform.UserSearchForm({'query': query}),
-            }
+        }
         info_template = get_template('dashboard/user_management/add.html')
         html = info_template.render(context, request)
         return HttpResponse(html)
@@ -1224,9 +1242,11 @@ class UserManagement(ProtectedView):
         try:
             users = User.objects.filter(id__in=user_ids)
             for user in users:
-                if ((user_profile.user.is_superuser and user_profile.user.is_staff) and
+                if ((
+                        user_profile.user.is_superuser and user_profile.user.is_staff) and
                         (not user.is_superuser)) or (
-                            user_profile.user.is_staff and (not user.is_staff)):
+                            user_profile.user.is_staff and (
+                        not user.is_staff)):
                     _users.append(user)
                 elif user_profile.user.id == user.id:
                     # Lets not delete self
@@ -1234,7 +1254,7 @@ class UserManagement(ProtectedView):
                 else:
                     # Not deleting Admins either
                     admin_users.append(user.username)
-            if len(_users)>0:
+            if len(_users) > 0:
                 if action == 'delete':
                     for user in _users:
                         # Check if user exists in other N/Ws
@@ -1262,8 +1282,8 @@ class UserManagement(ProtectedView):
                 message = 'Successfully, %s!' % action
                 if status is None:
                     messages.success(request, message,
-                                    extra_tags="alert alert-success")
-            if len(admin_users)>0:
+                                     extra_tags="alert alert-success")
+            if len(admin_users) > 0:
                 message = 'Cannot %s admin(s): %s ' % (action,
                                                        ', '.join(admin_users))
                 messages.warning(request, message,
@@ -1307,17 +1327,17 @@ class UserUpdate(ProtectedView):
                     _user.is_active = True  # setting active just to get perms
                     existing_permissions = get_perms(_user,
                                                      user_profile.network)
-                    _user.is_active = False # setting back to inactive
+                    _user.is_active = False  # setting back to inactive
                 else:
                     existing_permissions = get_perms(_user,
                                                      user_profile.network)
             else:
                 _user = User.objects.get(email=existing_user)
                 if not _user.is_active:
-                    _user.is_active = True # setting active to get perms
+                    _user.is_active = True  # setting active to get perms
                     existing_permissions = get_perms(_user,
                                                      user_profile.network)
-                    _user.is_active = False # setting back to inactive
+                    _user.is_active = False  # setting back to inactive
                 else:
                     existing_permissions = get_perms(_user,
                                                      user_profile.network)

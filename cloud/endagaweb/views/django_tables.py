@@ -151,7 +151,7 @@ class SubscriberTable(tables.Table):
 
     class Meta:
         model = models.Subscriber
-        fields = ('imsi', 'name_and_imsi_link', 'numbers', 'balance', 'status',
+        fields = ('imsi', 'name_and_imsi_link', 'bts', 'numbers', 'balance', 'status',
                   'last_active', 'role')
         attrs = {'class': 'table'}
 
@@ -168,6 +168,8 @@ class SubscriberTable(tables.Table):
     balance = tables.Column(verbose_name='Balance')
     last_active = tables.Column(verbose_name='Last Active')
     role = tables.Column(empty_values=(), order_by='role')
+    bts = tables.Column(verbose_name='BTS', order_by=('bts.nickname')
+                        , orderable=True)
 
     def render_imsi(self, record):
         return render_imsi(record)
@@ -199,6 +201,9 @@ class SubscriberTable(tables.Table):
         span_class = 'label %s' % label_class_mapping[status]
         element = "<span class='%s'>%s</span>" % (span_class, status)
         return safestring.mark_safe(element)
+
+    def render_bts(self, record):
+        return record.bts.nickname if record.bts.nickname > 0 else record.bts.uuid
 
 
 class SubscriberActivityTable(tables.Table):
