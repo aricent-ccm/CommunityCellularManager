@@ -268,6 +268,7 @@ class SubscriberListView(ProtectedView):
             headers = [
                 'IMSI',
                 'Name',
+                'BTS Name/UUID',
                 'Number(s)',
                 'Balance',
                 'Status',
@@ -284,10 +285,13 @@ class SubscriberListView(ProtectedView):
             # Forcibly limit to 7000 items.
             timezone = pytz.timezone(user_profile.timezone)
             for subscriber in query_subscribers[:7000]:
+                bts = subscriber.bts.nickname if subscriber.bts.nickname is not \
+                                                 None else subscriber.bts.uuid
                 status = 'camped' if subscriber.is_camped else 'not camped'
                 writer.writerow([
                     subscriber.imsi,
                     subscriber.name,
+                    bts,
                     subscriber.numbers(),
                     humanize_credits(subscriber.balance,
                                      currency=currency).amount_str(),
