@@ -705,19 +705,37 @@ class WaterfallStatsClient(StatsClientBase):
 
                 if kind == 'reload_rate':
                     try:
-                        pers = round(float(result) / activation, 2) * 100
+                        pers = round((float(result) / activation) * 100, 2)
                     except:
                         pers = 0
                     result = str(pers) + " %"
                 elif kind in ['average_load', 'average_frequency']:
                     kwargs['aggregation'] = 'loader'
                     kwargs['report_view'] = 'value'
-                    loader = self.aggregate_timeseries('transfer', **kwargs)
+                    kwargs['start_time_epoch'] = start_time_epoch
+                    kwargs['end_time_epoch'] = int(month_end_dt.strftime("%s")) - 1
+                    kwargs['query'] = Q(subscriber_id__in=subscribers,
+                                        to_number__in=sub_numbers,
+                                        from_number__in=retailers_numbers)
+
+                    loader_subs = self.aggregate_timeseries('transfer', **kwargs)
+                    if isinstance(loader_subs, (list, tuple)):
+                        loader_subs = len(loader_subs)
+
+                    kwargs['query'] = Q(subscriber=None,
+                                        subscriber_role='subscriber',
+                                        subscriber_imsi__in=subscriber_imsi,
+                                        from_number__in=retailers_numbers)
+                    loader_imsi = self.aggregate_timeseries('transfer',
+                                                            **kwargs)
+                    if isinstance(loader_imsi, (list, tuple)):
+                        loader_imsi = len(loader_imsi)
+
+                    loader = loader_subs + loader_imsi
                     if isinstance(loader, (list, tuple)):
                         loader = len(loader)
                     try:
-                        #result = round(float(result) / float(loader), 2)
-                        result = round(float(result) / float(activation), 2)
+                        result = round(float(result) / float(loader), 2)
                     except:
                         result = 0
                 month_row.update({col_key: result})

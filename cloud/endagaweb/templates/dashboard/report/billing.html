@@ -356,13 +356,13 @@ function renderTable(reportId, tableId) {
     console.log("to_month = ", event);
     var newEpochTime = moment(event.target.value, 'YYYY-MM').unix();
     console.log("newEpochTime 1 = ", newEpochTime);
-    showReport();
+    //showReport();
   });
   $('#'+reportId+' .from_month').on('dp.change', function(event) {
     console.log("to_month = ", event);
     var newEpochTime = moment(event.target.value, 'YYYY-MM').unix();
     console.log("newEpochTime 2 = ", newEpochTime);
-    showReport();
+    //showReport();
   });
 
   $('#'+reportId+' .to_month').datetimepicker({
@@ -371,8 +371,8 @@ function renderTable(reportId, tableId) {
     defaultDate: formattedDate
   });
 
-  //$('#'+reportId+' .submit').click(function(){
-  function showReport() {
+  $('#'+reportId+' .submit').click(function(){
+  //function showReport() {
     $('#'+reportId+' .loadingText').show();
     var from_date = moment.utc($('#'+reportId+' .from_month').val(), 'YYYY-MM').unix();
     var to_month = moment.utc($('#'+reportId+' .to_month').val(), 'YYYY-MM').unix();
@@ -430,8 +430,8 @@ function renderTable(reportId, tableId) {
       }
       $('#'+reportId+' .loadingText').hide();
     });
-  }
-  //}).click();
+  //}
+  }).click();
 }
 
 function renderNonLoder() {
