@@ -285,8 +285,11 @@ class SubscriberListView(ProtectedView):
             # Forcibly limit to 7000 items.
             timezone = pytz.timezone(user_profile.timezone)
             for subscriber in query_subscribers[:7000]:
-                bts = subscriber.bts.nickname if subscriber.bts.nickname is not \
-                                                 None else subscriber.bts.uuid
+                if subscriber.bts:
+                    bts = subscriber.bts.nickname if subscriber.bts.nickname \
+                                                     is not None else subscriber.bts.uuid
+                else:
+                    bts = "<deleted BTS>"
                 status = 'camped' if subscriber.is_camped else 'not camped'
                 writer.writerow([
                     subscriber.imsi,
